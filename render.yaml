@@ -1,0 +1,26 @@
+services:
+  - type: worker
+    name: manus-trading-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    plan: starter
+    envVars:
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_API_SECRET
+        sync: false
+      - key: SYMBOLS
+        value: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT
+      - key: MAX_RISK_PER_TRADE
+        value: "0.01"
+      - key: MAX_CONCURRENT_TRADES
+        value: "2"
+      - key: RISK_REWARD_RATIO
+        value: "1.5"
+      - key: TRAILING_STOP_PERCENT
+        value: "0.0075"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: BOT_RUN_INTERVAL
+        value: "60"

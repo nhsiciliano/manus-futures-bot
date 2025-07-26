@@ -1,0 +1,32 @@
+2025-07-25 08:22:12 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:22:12 - TradingBot - ERROR - ERROR: Error al inicializar componentes - APIError(code=0): Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.
+2025-07-25 08:23:18 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:23:18 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 08:24:09 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:24:09 - TradingBot - ERROR - ERROR: Error al inicializar componentes - test_bot_initialization.<locals>.custom_binance_client_init() missing 1 required positional argument: 'api_secret'
+2025-07-25 08:24:41 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:24:41 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 08:24:59 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:24:59 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 08:25:16 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:25:16 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 08:25:49 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 08:25:49 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:07:59 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:07:59 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:08:42 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:08:42 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:11:50 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:11:50 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:12:23 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:12:23 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:13:25 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:13:25 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:15:01 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:15:01 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:15:22 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:15:22 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:15:52 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:15:52 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-07-25 11:17:31 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-07-25 11:17:31 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
