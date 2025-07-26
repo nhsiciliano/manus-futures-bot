@@ -59,7 +59,7 @@ class RobustTradingBot:
             
             # Inicializar cliente de Binance
             print("📡 Conectando a Binance API...")
-            self.binance_client = BinanceAPIClient()
+            self.binance_client = BinanceAPIClient(config.BINANCE_API_KEY, config.BINANCE_API_SECRET)
             
             # Probar conexión
             if not self.binance_client.test_connection():
