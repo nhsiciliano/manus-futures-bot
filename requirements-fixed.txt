@@ -1,0 +1,22 @@
+# Requirements.txt optimizado para Render - Sin conflictos binarios
+# Instalar en este orden específico para evitar incompatibilidades
+
+# Base dependencies
+numpy==1.24.3
+pandas==2.0.3
+
+# Trading and technical analysis
+python-binance==1.0.19
+pandas-ta==0.3.14b0
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
+
+# Async support
+aiohttp==3.8.5
+websockets==11.0.3
+
+# Additional dependencies that might be needed
+setuptools==68.0.0
+wheel==0.40.0

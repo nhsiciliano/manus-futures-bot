@@ -8,10 +8,19 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# Actualizar pip y setuptools
+RUN pip install --upgrade pip setuptools wheel
 
 # Copiar requirements y instalar dependencias de Python
 COPY requirements.txt .
+
+# Instalar numpy primero para evitar conflictos binarios
+RUN pip install --no-cache-dir numpy==1.24.3
+
+# Instalar el resto de dependencias
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el código de la aplicación
