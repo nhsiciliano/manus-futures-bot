@@ -185,12 +185,13 @@ class RobustTradingBot:
                     
                     self.logger.info(f"🚀 Ejecutando señal {signal} para {symbol}")
                     
-                    # Aquí iría la lógica de ejecución de trades
-                    # Por ahora solo loggeamos la señal
-                    self.logger.log_signal(
-                        symbol, signal, analysis['current_price'],
-                        f"Confianza: {analysis['confidence']:.2f}"
-                    )
+                    # Ejecutar la operación real
+                    success = await self._execute_real_trade(analysis)
+                    
+                    if success:
+                        self.logger.info(f"✅ Operación {signal} ejecutada exitosamente para {symbol}")
+                    else:
+                        self.logger.warning(f"⚠️ Falló la ejecución de {signal} para {symbol}")
                     
                 except Exception as e:
                     self.logger.log_error(f"Error al ejecutar operación para {analysis.get('symbol', 'UNKNOWN')}", e)
@@ -198,6 +199,101 @@ class RobustTradingBot:
                     
         except Exception as e:
             self.logger.log_error("Error crítico en ejecución de trades", e)
+    
+    async def _execute_real_trade(self, analysis: Dict) -> bool:
+        """
+        Ejecutar una operación real en Binance
+        
+        Args:
+            analysis: Análisis del mercado con la señal de trading
+            
+        Returns:
+            True si la operación fue exitosa
+        """
+        try:
+            symbol = analysis['symbol']
+            signal = analysis['signal']
+            entry_price = analysis['current_price']
+            
+            self.logger.info(f"💰 Preparando operación {signal} para {symbol} @ ${entry_price:.4f}")
+            
+            # Obtener balance de la cuenta
+            account_balance = self.binance_client.get_account_balance()
+            if account_balance <= 0:
+                self.logger.error("❌ Balance de cuenta insuficiente")
+                return False
+            
+            self.logger.info(f"💳 Balance disponible: ${account_balance:.2f} USDT")
+            
+            # Calcular stop loss
+            stop_loss = self.risk_manager.calculate_stop_loss(symbol, signal, entry_price)
+            
+            # Calcular take profit
+            take_profit = self.risk_manager.calculate_take_profit(entry_price, stop_loss, signal)
+            
+            # Calcular tamaño de posición
+            position_size = self.risk_manager.calculate_position_size(
+                account_balance, entry_price, stop_loss
+            )
+            
+            # Verificar límites de riesgo
+            if not self.risk_manager.check_risk_limits(position_size, account_balance):
+                self.logger.warning(f"⚠️ Operación rechazada por límites de riesgo: {symbol}")
+                return False
+            
+            # Validar parámetros de la operación
+            if not self.risk_manager.validate_trade_parameters(
+                symbol, signal, entry_price, stop_loss, take_profit, position_size
+            ):
+                self.logger.warning(f"⚠️ Parámetros de operación inválidos: {symbol}")
+                return False
+            
+            # Log de los parámetros calculados
+            self.logger.info(f"📊 Parámetros de operación:")
+            self.logger.info(f"   💰 Tamaño: ${position_size:.2f} USDT")
+            self.logger.info(f"   🛡️ Stop Loss: ${stop_loss:.4f}")
+            self.logger.info(f"   🎯 Take Profit: ${take_profit:.4f}")
+            
+            # Ejecutar la orden en Binance
+            order_result = self.binance_client.place_futures_order(
+                symbol=symbol,
+                side='BUY' if signal == 'LONG' else 'SELL',
+                quantity=position_size / entry_price,  # Convertir USDT a cantidad de monedas
+                order_type='MARKET'
+            )
+            
+            if order_result:
+                # Registrar la posición en el position manager
+                position_data = {
+                    'symbol': symbol,
+                    'side': signal,
+                    'entry_price': entry_price,
+                    'quantity': position_size / entry_price,
+                    'stop_loss': stop_loss,
+                    'take_profit': take_profit,
+                    'order_id': order_result.get('orderId'),
+                    'timestamp': time.time()
+                }
+                
+                self.position_manager.add_position(symbol, position_data)
+                
+                # Log de éxito
+                self.logger.log_signal(
+                    symbol, signal, entry_price,
+                    f"SL: ${stop_loss:.4f}, TP: ${take_profit:.4f}, Size: ${position_size:.2f}"
+                )
+                
+                self.logger.info(f"🎉 OPERACIÓN EJECUTADA: {signal} {symbol} @ ${entry_price:.4f}")
+                self.logger.info(f"📋 Order ID: {order_result.get('orderId')}")
+                
+                return True
+            else:
+                self.logger.error(f"❌ Error al ejecutar orden en Binance para {symbol}")
+                return False
+                
+        except Exception as e:
+            self.logger.log_error(f"Error al ejecutar operación real para {analysis.get('symbol', 'UNKNOWN')}", e)
+            return False
     
     async def monitor_positions_safe(self) -> None:
         """Monitorear posiciones existentes con manejo robusto de errores"""

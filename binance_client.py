@@ -187,6 +187,49 @@ class BinanceAPIClient:
             self.logger.error(f"Error al colocar take profit: {e}")
             return {}
     
+    def place_futures_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET') -> Dict:
+        """
+        Colocar una orden de futuros en Binance
+        
+        Args:
+            symbol: Par de trading (ej. 'BTCUSDT')
+            side: 'BUY' o 'SELL'
+            quantity: Cantidad a operar
+            order_type: Tipo de orden ('MARKET', 'LIMIT', etc.)
+            
+        Returns:
+            Información de la orden ejecutada
+        """
+        try:
+            self.logger.info(f"🔄 Ejecutando orden {side} {order_type} para {quantity:.6f} {symbol}")
+            
+            # Crear la orden en Binance Futures
+            order = self.client.futures_create_order(
+                symbol=symbol,
+                side=side,
+                type=order_type,
+                quantity=quantity
+            )
+            
+            self.logger.info(f"✅ Orden ejecutada exitosamente:")
+            self.logger.info(f"   📋 Order ID: {order.get('orderId')}")
+            self.logger.info(f"   💰 Cantidad: {order.get('executedQty', quantity)}")
+            self.logger.info(f"   💵 Precio promedio: {order.get('avgPrice', 'N/A')}")
+            
+            return order
+            
+        except BinanceOrderException as e:
+            self.logger.error(f"❌ Error al ejecutar orden {side} para {symbol}: {e}")
+            self.handle_api_error(e)
+            return {}
+        except BinanceAPIException as e:
+            self.logger.error(f"❌ Error de API al ejecutar orden: {e}")
+            self.handle_api_error(e)
+            return {}
+        except Exception as e:
+            self.logger.error(f"❌ Error inesperado al ejecutar orden: {e}")
+            return {}
+    
     def cancel_order(self, symbol: str, order_id: int) -> bool:
         """
         Cancelar una orden
