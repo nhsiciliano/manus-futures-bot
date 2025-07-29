@@ -5,7 +5,7 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "YOUR_BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "YOUR_BINANCE_API_SECRET")
 
 # Configuración del bot
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]  # Pares a monitorear
+SYMBOLS = os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT").split(",")  # Pares a monitorear
 INTERVAL_4H = "4h"
 INTERVAL_15M = "15m"
 
@@ -23,16 +23,16 @@ MACD_SLOW_PERIOD = 26
 MACD_SIGNAL_PERIOD = 9
 
 # Gestión de riesgos
-MAX_RISK_PER_TRADE = 0.01  # 1% del capital por operación
-MAX_CONCURRENT_TRADES = 2
-RISK_REWARD_RATIO = 1.5
-TRAILING_STOP_PERCENT = 0.0075 # 0.75% para activar trailing stop
+MAX_RISK_PER_TRADE = float(os.getenv("MAX_RISK_PER_TRADE", "0.01"))  # 1% del capital por operación
+MAX_CONCURRENT_TRADES = int(os.getenv("MAX_CONCURRENT_TRADES", "2"))
+RISK_REWARD_RATIO = float(os.getenv("RISK_REWARD_RATIO", "1.5"))
+TRAILING_STOP_PERCENT = float(os.getenv("TRAILING_STOP_PERCENT", "0.0075")) # 0.75% para activar trailing stop
 
 # Configuración de Logging
-LOG_FILE = "trading_bot.log"
-LOG_LEVEL = "INFO"
+LOG_FILE = os.getenv("LOG_FILE", "trading_bot.log")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Intervalo de ejecución del bot (en segundos)
-BOT_RUN_INTERVAL = 60 # Cada 60 segundos el bot revisará el mercado
+BOT_RUN_INTERVAL = int(os.getenv("BOT_RUN_INTERVAL", "60")) # Cada 60 segundos el bot revisará el mercado
 
 
