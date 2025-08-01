@@ -26,12 +26,28 @@ class BinanceAPIClient:
         """Inicializar la conexión con Binance"""
         try:
             self.client = Client(self.api_key, self.api_secret)
-            # Configurar para futuros
-            # self.client.futures_change_leverage(symbol='BTCUSDT', leverage=1) # Esto puede fallar si el símbolo no existe o no es de futuros
+            # Configurar apalancamiento seguro para todos los símbolos
+            self._set_leverage_for_symbols()
             self.logger.info("Cliente de Binance inicializado correctamente")
         except Exception as e:
             self.logger.error(f"Error al inicializar cliente de Binance: {e}")
             raise
+    
+    def _set_leverage_for_symbols(self):
+        """Configurar apalancamiento para todos los símbolos de trading"""
+        try:
+            from . import config
+            leverage = config.LEVERAGE
+            
+            for symbol in config.SYMBOLS:
+                try:
+                    self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
+                    self.logger.info(f"🔧 Apalancamiento configurado: {symbol} = {leverage}x")
+                except Exception as e:
+                    self.logger.warning(f"⚠️ No se pudo configurar apalancamiento para {symbol}: {e}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error al configurar apalancamiento: {e}")
     
     def get_account_balance(self) -> float:
         """
@@ -301,6 +317,3 @@ class BinanceAPIClient:
         except Exception as e:
             self.logger.error(f"Error de conexión con Binance: {e}")
             return False
-
-
-

@@ -28,6 +28,7 @@ MAX_CONCURRENT_TRADES = int(os.getenv("MAX_CONCURRENT_TRADES", "2"))
 RISK_REWARD_RATIO = float(os.getenv("RISK_REWARD_RATIO", "1.5"))
 TRAILING_STOP_PERCENT = float(os.getenv("TRAILING_STOP_PERCENT", "0.0075")) # 0.75% para activar trailing stop
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.8"))  # Umbral mínimo de confianza para ejecutar operaciones
+LEVERAGE = int(os.getenv("LEVERAGE", "5"))  # Apalancamiento para futuros (recomendado: 3-10x para estrategias conservadoras)
 
 # Configuración de Logging
 LOG_FILE = os.getenv("LOG_FILE", "trading_bot.log")
