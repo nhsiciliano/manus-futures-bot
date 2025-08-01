@@ -36,7 +36,7 @@ class BinanceAPIClient:
     def _set_leverage_for_symbols(self):
         """Configurar apalancamiento para todos los símbolos de trading"""
         try:
-            from . import config
+            import config
             leverage = config.LEVERAGE
             
             for symbol in config.SYMBOLS:
