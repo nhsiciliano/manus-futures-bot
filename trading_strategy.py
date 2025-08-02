@@ -156,17 +156,17 @@ class TradingStrategy:
         if not ema_crossover:
             return False
         
-        # Condición 3: RSI entre 50 y 70
+        # Condición 3: RSI entre 40 y 75 (rango de compra)
         if not self.technical_analysis.is_rsi_in_range(
-            rsi_15m, config.RSI_MID_LEVEL, config.RSI_OVERBOUGHT
+            rsi_15m, config.RSI_BUY_ENTRY, config.RSI_OVERBOUGHT
         ):
             return False
             
-        # Condición 4: MACD - Cruce alcista (MACD > SIGNAL) y MACD > 0 (confirmación de momentum alcista)
+        # Condición 4: MACD - Cruce alcista (MACD > SIGNAL)
         if not macd_15m or pd.isna(macd_15m.get('MACD')) or pd.isna(macd_15m.get('SIGNAL')):
             return False
         
-        if not (macd_15m['MACD'] > macd_15m['SIGNAL'] and macd_15m['MACD'] > 0):
+        if not (macd_15m['MACD'] > macd_15m['SIGNAL']):
             return False
         
         return True
@@ -195,17 +195,17 @@ class TradingStrategy:
         if not ema_crossover:
             return False
         
-        # Condición 3: RSI entre 30 y 50
+        # Condición 3: RSI entre 25 y 60 (rango de venta)
         if not self.technical_analysis.is_rsi_in_range(
-            rsi_15m, config.RSI_OVERSOLD, config.RSI_MID_LEVEL
+            rsi_15m, config.RSI_OVERSOLD, config.RSI_SELL_ENTRY
         ):
             return False
             
-        # Condición 4: MACD - Cruce bajista (MACD < SIGNAL) y MACD < 0 (confirmación de momentum bajista)
+        # Condición 4: MACD - Cruce bajista (MACD < SIGNAL)
         if not macd_15m or pd.isna(macd_15m.get('MACD')) or pd.isna(macd_15m.get('SIGNAL')):
             return False
             
-        if not (macd_15m['MACD'] < macd_15m['SIGNAL'] and macd_15m['MACD'] < 0):
+        if not (macd_15m['MACD'] < macd_15m['SIGNAL']):
             return False
         
         return True

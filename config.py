@@ -13,8 +13,10 @@ INTERVAL_15M = "15m"
 EMA_200_PERIOD = 200
 EMA_20_PERIOD = 20
 RSI_PERIOD = 14
-RSI_OVERBOUGHT = 70
-RSI_OVERSOLD = 30
+RSI_OVERBOUGHT = 75  # Límite superior para considerar salida
+RSI_OVERSOLD = 25   # Límite inferior para considerar salida
+RSI_BUY_ENTRY = 40    # Nivel mínimo de RSI para entrar en LONG
+RSI_SELL_ENTRY = 60   # Nivel máximo de RSI para entrar en SHORT
 RSI_MID_LEVEL = 50
 
 # Parámetros del MACD
