@@ -245,7 +245,7 @@ class RobustTradingBot:
             )
             
             # Verificar límites de riesgo
-            if not self.risk_manager.check_risk_limits(position_size, account_balance):
+            if not self.risk_manager.check_risk_limits(position_size, entry_price, account_balance):
                 self.logger.warning(f"⚠️ Operación rechazada por límites de riesgo: {symbol}")
                 return False
             

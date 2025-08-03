@@ -157,27 +157,29 @@ class RiskManager:
             self.logger.error(f"Error al verificar posiciones: {e}")
             return False
     
-    def check_risk_limits(self, position_size: float, account_balance: float) -> bool:
+    def check_risk_limits(self, position_size: float, entry_price: float, account_balance: float) -> bool:
         """
         Verificar que el tamaño de posición no exceda los límites de riesgo
         
         Args:
             position_size: Tamaño de la posición propuesta
+            entry_price: El precio de entrada de la posición.
             account_balance: Balance de la cuenta
             
         Returns:
             True si está dentro de los límites
         """
         try:
+            position_size_usdt = position_size * entry_price
             max_position_size = account_balance * 0.1  # Máximo 10% del balance por posición
             
-            if position_size > max_position_size:
-                self.logger.warning(f"Tamaño de posición excede límite: {position_size} > {max_position_size}")
+            if position_size_usdt > max_position_size:
+                self.logger.warning(f"Tamaño de posición excede límite: {position_size_usdt} > {max_position_size}")
                 return False
             
             # Verificar que el tamaño mínimo sea viable
-            if position_size < 10:  # Mínimo 10 USDT
-                self.logger.warning(f"Tamaño de posición muy pequeño: {position_size}")
+            if position_size_usdt < 10:  # Mínimo 10 USDT
+                self.logger.warning(f"Tamaño de posición muy pequeño: {position_size_usdt}")
                 return False
             
             return True
