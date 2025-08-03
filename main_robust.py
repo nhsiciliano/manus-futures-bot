@@ -183,14 +183,26 @@ class RobustTradingBot:
                         self.logger.warning(f"⚠️ Ya existe posición para {symbol}")
                         continue
                     
-                    self.logger.info(f"🚀 Ejecutando señal {signal} para {symbol}")
+                    # Calcular parámetros de la operación
+                    entry_price = analysis['current_price']
+                    stop_loss = self.risk_manager.calculate_stop_loss(symbol, signal, entry_price)
+                    take_profit = self.risk_manager.calculate_take_profit(entry_price, stop_loss, signal)
                     
-                    # Aquí iría la lógica de ejecución de trades
-                    # Por ahora solo loggeamos la señal
-                    self.logger.log_signal(
-                        symbol, signal, analysis['current_price'],
-                        f"Confianza: {analysis['confidence']:.2f}"
-                    )
+                    # Calcular tamaño de posición en USDT
+                    balance = self.binance_client.get_account_balance()
+                    position_size_usdt = self.risk_manager.calculate_position_size(balance, entry_price, stop_loss)
+                    
+                    # Validar límites de riesgo
+                    if not self.risk_manager.check_risk_limits(position_size_usdt, balance):
+                        self.logger.warning(f"⚠️ Operación rechazada por límites de riesgo: {symbol}")
+                        continue
+                    
+                    # Validar parámetros de la operación
+                    if not self.risk_manager.validate_trade_parameters(symbol, signal, entry_price, stop_loss, take_profit, position_size_usdt):
+                        self.logger.warning(f"⚠️ Parámetros de operación inválidos para {symbol}")
+                        continue
+
+                    self.logger.info(f"🚀 Ejecutando señal {signal} para {symbol} con tamaño {position_size_usdt:.2f} USDT")
                     
                 except Exception as e:
                     self.logger.log_error(f"Error al ejecutar operación para {analysis.get('symbol', 'UNKNOWN')}", e)

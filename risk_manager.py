@@ -157,20 +157,18 @@ class RiskManager:
             self.logger.error(f"Error al verificar posiciones: {e}")
             return False
     
-    def check_risk_limits(self, position_size: float, entry_price: float, account_balance: float) -> bool:
+    def check_risk_limits(self, position_size_usdt: float, account_balance: float) -> bool:
         """
         Verificar que el tamaño de posición no exceda los límites de riesgo
         
         Args:
-            position_size: Tamaño de la posición propuesta
-            entry_price: El precio de entrada de la posición.
+            position_size_usdt: Tamaño de la posición en USDT
             account_balance: Balance de la cuenta
             
         Returns:
             True si está dentro de los límites
         """
         try:
-            position_size_usdt = position_size * entry_price
             max_position_size = account_balance * 0.1  # Máximo 10% del balance por posición
             
             if position_size_usdt > max_position_size:
@@ -234,7 +232,7 @@ class RiskManager:
     
     def validate_trade_parameters(self, symbol: str, side: str, entry_price: float, 
                                 stop_loss: float, take_profit: float, 
-                                position_size: float) -> bool:
+                                position_size_usdt: float) -> bool:
         """
         Validar todos los parámetros de una operación antes de ejecutarla
         
@@ -251,7 +249,7 @@ class RiskManager:
         """
         try:
             # Validar que los precios sean positivos
-            if any(price <= 0 for price in [entry_price, stop_loss, take_profit, position_size]):
+            if any(price <= 0 for price in [entry_price, stop_loss, take_profit, position_size_usdt]):
                 self.logger.error("Precios o tamaño de posición inválidos (negativos o cero)")
                 return False
             
