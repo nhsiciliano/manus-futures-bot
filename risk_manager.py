@@ -17,6 +17,7 @@ class RiskManager:
         self.binance_client = binance_client
         self.logger = logging.getLogger(__name__)
         self.max_risk_per_trade = config.MAX_RISK_PER_TRADE
+        self.max_position_size_percent = config.MAX_POSITION_SIZE_PERCENT
         self.max_concurrent_trades = config.MAX_CONCURRENT_TRADES
         self.risk_reward_ratio = config.RISK_REWARD_RATIO
         self.trailing_stop_percent = config.TRAILING_STOP_PERCENT
@@ -169,7 +170,7 @@ class RiskManager:
             True si está dentro de los límites
         """
         try:
-            max_position_size = account_balance * 0.1  # Máximo 10% del balance por posición
+            max_position_size = account_balance * self.max_position_size_percent  # Máximo 10% del balance por posición
             
             if position_size_usdt > max_position_size:
                 self.logger.warning(f"Tamaño de posición excede límite: {position_size_usdt} > {max_position_size}")
