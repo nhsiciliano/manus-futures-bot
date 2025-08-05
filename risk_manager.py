@@ -176,7 +176,7 @@ class RiskManager:
                 return False
             
             # Verificar que el tamaño mínimo sea viable
-            if position_size_usdt < 10:  # Mínimo 10 USDT
+            if position_size_usdt < 2:  # Mínimo 2 USDT
                 self.logger.warning(f"Tamaño de posición muy pequeño: {position_size_usdt}")
                 return False
             
