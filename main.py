@@ -240,25 +240,25 @@ class RobustTradingBot:
             take_profit = self.risk_manager.calculate_take_profit(entry_price, stop_loss, signal)
             
             # Calcular tamaño de posición
-            position_size = self.risk_manager.calculate_position_size(
+            position_size_usdt = self.risk_manager.calculate_position_size(
                 account_balance, entry_price, stop_loss
             )
             
             # Verificar límites de riesgo
-            if not self.risk_manager.check_risk_limits(position_size, entry_price, account_balance):
+            if not self.risk_manager.check_risk_limits(position_size_usdt, account_balance):
                 self.logger.warning(f"⚠️ Operación rechazada por límites de riesgo: {symbol}")
                 return False
             
             # Validar parámetros de la operación
             if not self.risk_manager.validate_trade_parameters(
-                symbol, signal, entry_price, stop_loss, take_profit, position_size
+                symbol, signal, entry_price, stop_loss, take_profit, position_size_usdt
             ):
                 self.logger.warning(f"⚠️ Parámetros de operación inválidos: {symbol}")
                 return False
             
             # Log de los parámetros calculados
             self.logger.info(f"📊 Parámetros de operación:")
-            self.logger.info(f"   💰 Tamaño: ${position_size:.2f} USDT")
+            self.logger.info(f"   💰 Tamaño: ${position_size_usdt:.2f} USDT")
             self.logger.info(f"   🛡️ Stop Loss: ${stop_loss:.4f}")
             self.logger.info(f"   🎯 Take Profit: ${take_profit:.4f}")
             
@@ -266,7 +266,7 @@ class RobustTradingBot:
             order_result = self.binance_client.place_futures_order(
                 symbol=symbol,
                 side='BUY' if signal == 'LONG' else 'SELL',
-                quantity=position_size / entry_price,  # Convertir USDT a cantidad de monedas
+                quantity=position_size_usdt / entry_price,  # Convertir USDT a cantidad de monedas
                 order_type='MARKET'
             )
             
@@ -276,7 +276,7 @@ class RobustTradingBot:
                     'symbol': symbol,
                     'side': signal,
                     'entry_price': entry_price,
-                    'quantity': position_size / entry_price,
+                    'quantity': position_size_usdt / entry_price,
                     'stop_loss': stop_loss,
                     'take_profit': take_profit,
                     'order_id': order_result.get('orderId'),
@@ -288,7 +288,7 @@ class RobustTradingBot:
                 # Log de éxito
                 self.logger.log_signal(
                     symbol, signal, entry_price,
-                    f"SL: ${stop_loss:.4f}, TP: ${take_profit:.4f}, Size: ${position_size:.2f}"
+                    f"SL: ${stop_loss:.4f}, TP: ${take_profit:.4f}, Size: ${position_size_usdt:.2f}"
                 )
                 
                 self.logger.info(f"🎉 OPERACIÓN EJECUTADA: {signal} {symbol} @ ${entry_price:.4f}")
