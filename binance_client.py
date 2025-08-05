@@ -19,6 +19,7 @@ class BinanceAPIClient:
         self.api_key = api_key
         self.api_secret = api_secret
         self.client = None
+        self.symbol_info = {}
         self.logger = logging.getLogger(__name__)
         self._initialize_client()
     
@@ -26,13 +27,44 @@ class BinanceAPIClient:
         """Inicializar la conexión con Binance"""
         try:
             self.client = Client(self.api_key, self.api_secret)
+            self._fetch_symbol_info()
             # Configurar apalancamiento seguro para todos los símbolos
             self._set_leverage_for_symbols()
             self.logger.info("Cliente de Binance inicializado correctamente")
         except Exception as e:
             self.logger.error(f"Error al inicializar cliente de Binance: {e}")
             raise
+
+    def _fetch_symbol_info(self):
+        """Obtener y almacenar la información de precisión de los símbolos."""
+        try:
+            exchange_info = self.client.futures_exchange_info()
+            for s in exchange_info['symbols']:
+                self.symbol_info[s['symbol']] = {
+                    'pricePrecision': s['pricePrecision'],
+                    'quantityPrecision': s['quantityPrecision'],
+                }
+            self.logger.info(f"Información de precisión para {len(self.symbol_info)} símbolos cargada.")
+        except BinanceAPIException as e:
+            self.logger.error(f"Error al obtener información de símbolos de Binance: {e}")
+            # No relanzar para permitir que el bot continúe si la API no está disponible al inicio
     
+    def _format_price(self, symbol: str, price: float) -> str:
+        """Formatea un precio según la precisión del símbolo."""
+        if symbol in self.symbol_info:
+            precision = self.symbol_info[symbol]['pricePrecision']
+            return f"{price:.{precision}f}"
+        # Si no hay información, devolver como string sin formato
+        return str(price)
+
+    def _format_quantity(self, symbol: str, quantity: float) -> str:
+        """Formatea una cantidad según la precisión del símbolo."""
+        if symbol in self.symbol_info:
+            precision = self.symbol_info[symbol]['quantityPrecision']
+            return f"{quantity:.{precision}f}"
+        # Si no hay información, devolver como string sin formato
+        return str(quantity)
+
     def _set_leverage_for_symbols(self):
         """Configurar apalancamiento para todos los símbolos de trading"""
         try:
@@ -137,6 +169,7 @@ class BinanceAPIClient:
             Información de la orden
         """
         try:
+            quantity = self._format_quantity(symbol, quantity)
             order = self.client.futures_create_order(
                 symbol=symbol,
                 side=side,
@@ -163,6 +196,8 @@ class BinanceAPIClient:
             Información de la orden
         """
         try:
+            quantity = self._format_quantity(symbol, quantity)
+            stop_price = self._format_price(symbol, stop_price)
             order = self.client.futures_create_order(
                 symbol=symbol,
                 side=side,
@@ -190,6 +225,8 @@ class BinanceAPIClient:
             Información de la orden
         """
         try:
+            quantity = self._format_quantity(symbol, quantity)
+            price = self._format_price(symbol, price)
             order = self.client.futures_create_order(
                 symbol=symbol,
                 side=side,
@@ -217,7 +254,8 @@ class BinanceAPIClient:
             Información de la orden ejecutada
         """
         try:
-            self.logger.info(f"🔄 Ejecutando orden {side} {order_type} para {quantity:.6f} {symbol}")
+            quantity = self._format_quantity(symbol, quantity)
+            self.logger.info(f"🔄 Ejecutando orden {side} {order_type} para {quantity} {symbol}")
             
             # Crear la orden en Binance Futures
             order = self.client.futures_create_order(
