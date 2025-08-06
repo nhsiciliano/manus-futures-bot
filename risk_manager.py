@@ -25,7 +25,7 @@ class RiskManager:
     def calculate_position_size(self, account_balance: float, entry_price: float, 
                               stop_loss_price: float) -> float:
         """
-        Calcular el tamaño de la posición basado en el riesgo
+        Calcular el tamaño de la posición basado en el riesgo, respetando el máximo tamaño de posición.
         
         Args:
             account_balance: Balance total de la cuenta
@@ -36,20 +36,31 @@ class RiskManager:
             Tamaño de la posición en USDT
         """
         try:
-            # Calcular la distancia al stop loss
+            # 1. Calcular el tamaño de posición basado en el riesgo por operación
             distance_to_sl = abs(entry_price - stop_loss_price)
-            
-            # Calcular el riesgo máximo en USDT
+            if distance_to_sl == 0:
+                self.logger.warning("La distancia al Stop Loss es cero, no se puede calcular el tamaño de la posición.")
+                return 0.0
+
             max_risk_usdt = account_balance * self.max_risk_per_trade
+            position_size_based_on_risk = max_risk_usdt / distance_to_sl
             
-            # Calcular el tamaño de la posición
-            position_size = max_risk_usdt / distance_to_sl
+            # 2. Calcular el tamaño máximo de posición permitido
+            max_position_size_usdt = account_balance * self.max_position_size_percent
             
+            # 3. Usar el menor de los dos tamaños
+            final_position_size = min(position_size_based_on_risk, max_position_size_usdt)
+            
+            if final_position_size < position_size_based_on_risk:
+                self.logger.info(f"Tamaño de posición ajustado por límite máximo. "
+                                 f"Original: {position_size_based_on_risk:.2f}, "
+                                 f"Ajustado: {final_position_size:.2f}")
+
             self.logger.debug(f"Cálculo de posición: Balance={account_balance}, "
                             f"Entrada={entry_price}, SL={stop_loss_price}, "
-                            f"Distancia SL={distance_to_sl}, Tamaño={position_size}")
+                            f"Distancia SL={distance_to_sl}, Tamaño Final={final_position_size}")
             
-            return position_size
+            return final_position_size
             
         except Exception as e:
             self.logger.error(f"Error al calcular tamaño de posición: {e}")

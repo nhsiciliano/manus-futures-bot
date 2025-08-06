@@ -166,9 +166,17 @@ class RobustTradingBot:
                 self.logger.info("📊 No hay señales de trading en este ciclo")
                 return
             
-            self.logger.info(f"🎯 Procesando {len(trading_signals)} señales de trading")
+            # Filtrar señales por umbral de confianza
+            high_confidence_signals = [a for a in trading_signals if a['confidence'] >= config.CONFIDENCE_THRESHOLD]
             
-            for analysis in trading_signals:
+            if not high_confidence_signals:
+                low_conf_count = len(trading_signals)
+                self.logger.info(f"📊 {low_conf_count} señales detectadas pero ninguna supera el umbral de confianza ({config.CONFIDENCE_THRESHOLD:.2f})")
+                return
+
+            self.logger.info(f"🎯 Procesando {len(high_confidence_signals)} señales de trading con alta confianza")
+            
+            for analysis in high_confidence_signals:
                 try:
                     symbol = analysis['symbol']
                     signal = analysis['signal']
