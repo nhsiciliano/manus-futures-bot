@@ -39,3 +39,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Intervalo de ejecución del bot (en segundos)
 BOT_RUN_INTERVAL = int(os.getenv("BOT_RUN_INTERVAL", "120")) # Cada 120 segundos el bot revisará el mercado
+
+# Configuración de Notificaciones de Telegram
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "YOUR_TELEGRAM_CHAT_ID")

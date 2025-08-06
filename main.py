@@ -19,6 +19,7 @@ from risk_manager import RiskManager
 from position_manager import PositionManager
 from logger import TradingLogger
 import config
+from notifications import send_telegram_message
 
 class RobustTradingBot:
     """Bot principal de trading automático con manejo robusto de errores"""
@@ -293,6 +294,44 @@ class RobustTradingBot:
                 
                 self.logger.info(f"🎉 OPERACIÓN EJECUTADA: {signal} {symbol} @ ${entry_price:.4f}")
                 self.logger.info(f"📋 Order ID: {order_result.get('orderId')}")
+
+                # Colocar órdenes de Stop Loss y Take Profit
+                quantity = position_size_usdt / entry_price
+                exit_side = 'SELL' if signal == 'LONG' else 'BUY'
+
+                self.logger.info(f"🛡️ Colocando orden Stop Loss para {symbol}...")
+                sl_order_result = self.binance_client.place_stop_loss_order(
+                    symbol=symbol,
+                    side=exit_side,
+                    quantity=quantity,
+                    stop_price=stop_loss
+                )
+                if sl_order_result:
+                    self.logger.info(f"✅ Orden Stop Loss colocada: ID {sl_order_result.get('orderId')}")
+                else:
+                    self.logger.error(f"❌ Error al colocar orden Stop Loss para {symbol}")
+
+                self.logger.info(f"🎯 Colocando orden Take Profit para {symbol}...")
+                tp_order_result = self.binance_client.place_take_profit_order(
+                    symbol=symbol,
+                    side=exit_side,
+                    quantity=quantity,
+                    price=take_profit
+                )
+                if tp_order_result:
+                    self.logger.info(f"✅ Orden Take Profit colocada: ID {tp_order_result.get('orderId')}")
+                else:
+                    self.logger.error(f"❌ Error al colocar orden Take Profit para {symbol}")
+
+                # Enviar notificación a Telegram
+                telegram_message = (
+                    f"🚀 *Nueva Operación: {signal} {symbol}* 🚀\n\n"
+                    f"*Entrada:* ${entry_price:.4f}\n"
+                    f"*Stop Loss:* ${stop_loss:.4f}\n"
+                    f"*Take Profit:* ${take_profit:.4f}\n"
+                    f"*Tamaño:* ${position_size_usdt:.2f} USDT"
+                )
+                send_telegram_message(telegram_message)
                 
                 return True
             else:
