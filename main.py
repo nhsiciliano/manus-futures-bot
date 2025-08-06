@@ -284,7 +284,15 @@ class RobustTradingBot:
                     'timestamp': time.time()
                 }
                 
-                self.position_manager.add_position(symbol, position_data)
+                self.position_manager.add_position(
+                    symbol=position_data['symbol'],
+                    side=position_data['side'],
+                    entry_price=position_data['entry_price'],
+                    quantity=position_data['quantity'],
+                    stop_loss=position_data['stop_loss'],
+                    take_profit=position_data['take_profit'],
+                    order_id=position_data.get('order_id')
+                )
                 
                 # Log de éxito
                 self.logger.log_signal(

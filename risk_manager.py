@@ -94,11 +94,11 @@ class RiskManager:
             previous_candle = klines_15m.iloc[-2]
             
             if side == 'LONG':
-                # Para posiciones largas, SL en el mínimo de la vela anterior
-                stop_loss = previous_candle['low']
+                # Para posiciones largas, SL un 0.1% por debajo del mínimo de la vela anterior
+                stop_loss = previous_candle['low'] * 0.999
             else:
-                # Para posiciones cortas, SL en el máximo de la vela anterior
-                stop_loss = previous_candle['high']
+                # Para posiciones cortas, SL un 0.1% por encima del máximo de la vela anterior
+                stop_loss = previous_candle['high'] * 1.001
             
             self.logger.debug(f"Stop loss calculado para {symbol} {side}: {stop_loss}")
             return stop_loss
