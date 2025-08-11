@@ -26,13 +26,23 @@ class KlineDataStreamer:
     async def _process_message(self, msg: Dict):
         """Procesa un mensaje del websocket de klines"""
         try:
-            if msg['e'] == 'error':
-                self.logger.error(f"Error en websocket: {msg['m']}")
+            if not isinstance(msg, dict) or 'stream' not in msg or 'data' not in msg:
+                self.logger.warning(f"Mensaje de stream inválido o incompleto: {msg}")
                 return
 
-            symbol = msg['s']
-            interval = msg['k']['i']
-            kline_data = msg['k']
+            stream = msg['stream']
+            data = msg['data']
+
+            if data.get('e') == 'error':
+                self.logger.error(f"Error en websocket stream {stream}: {data.get('m')}")
+                return
+
+            if 'k' not in data:
+                return
+
+            symbol = data['s']
+            kline_data = data['k']
+            interval = kline_data['i']
             
             df_new_row = pd.DataFrame({
                 'timestamp': [pd.to_datetime(kline_data['t'], unit='ms')],
@@ -51,16 +61,14 @@ class KlineDataStreamer:
                 if stream_name not in self.klines:
                     self.klines[stream_name] = df_new_row
                 else:
-                    # Si la vela es nueva, la añadimos. Si no, actualizamos la última.
                     if df_new_row.index[0] > self.klines[stream_name].index[-1]:
                         self.klines[stream_name] = pd.concat([self.klines[stream_name], df_new_row])
-                        # Mantener un tamaño máximo para no consumir memoria infinita
                         self.klines[stream_name] = self.klines[stream_name].tail(1000) 
                     else:
                         self.klines[stream_name].iloc[-1] = df_new_row.iloc[0]
 
         except Exception as e:
-            self.logger.error(f"Error procesando mensaje de kline: {e}")
+            self.logger.error(f"Error procesando mensaje de kline: {e} - Mensaje: {msg}", exc_info=True)
 
     async def start_stream(self):
         """Inicia los streams de klines para los símbolos configurados"""
