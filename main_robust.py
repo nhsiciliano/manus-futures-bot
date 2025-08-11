@@ -34,7 +34,6 @@ class RobustTradingBot:
         self.cycle_count = 0
         self.last_successful_cycle = None
         
-        # Configurar el manejo de señales para cierre seguro
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
     
@@ -43,41 +42,37 @@ class RobustTradingBot:
         print("\nSeñal de cierre recibida. Cerrando bot de forma segura...")
         self.running = False
     
-    def initialize_components(self) -> bool:
-        """
-        Inicializar todos los componentes del bot
-        
-        Returns:
-            True si la inicialización fue exitosa
-        """
+    async def initialize_components(self) -> bool:
+        """Inicializar todos los componentes del bot"""
         try:
             print("🔧 Inicializando componentes del bot...")
-            
-            # Inicializar logger
             self.logger = TradingLogger()
             self.logger.log_bot_status("STARTING", "Inicializando componentes del bot")
             
-            # Inicializar cliente de Binance
             print("📡 Conectando a Binance API...")
             self.binance_client = BinanceAPIClient()
             
-            # Probar conexión
             if not self.binance_client.test_connection():
                 self.logger.log_error("No se pudo establecer conexión con Binance")
                 print("❌ Error: No se pudo conectar a Binance API")
                 return False
-            
             print("✅ Conexión a Binance establecida")
+
+            print("🔌 Iniciando stream de datos de mercado (Websocket)...")
+            self.binance_client.start_kline_stream()
             
-            # Inicializar estrategia de trading
+            print("⏳ Esperando la llegada de datos iniciales del stream...")
+            await asyncio.sleep(10) # Dar tiempo a que el websocket se conecte y reciba datos
+
+            print("📈 Cargando datos históricos iniciales para el análisis...")
+            await self._populate_initial_klines()
+
             print("📊 Inicializando estrategia de trading...")
             self.trading_strategy = TradingStrategy(self.binance_client)
             
-            # Inicializar gestor de riesgos
             print("🛡️ Inicializando gestor de riesgos...")
             self.risk_manager = RiskManager(self.binance_client)
             
-            # Inicializar gestor de posiciones
             print("📈 Inicializando gestor de posiciones...")
             self.position_manager = PositionManager()
             self.position_manager.load_positions_from_file()
@@ -94,46 +89,38 @@ class RobustTradingBot:
                 print(f"❌ {error_msg}")
                 print(f"Traceback: {traceback.format_exc()}")
             return False
-    
+
+    async def _populate_initial_klines(self):
+        """Carga los datos históricos de klines al inicio"""
+        for symbol in config.SYMBOLS:
+            for interval in [config.INTERVAL_15M, config.INTERVAL_4H]:
+                try:
+                    klines = self.binance_client.get_klines(symbol, interval, 500)
+                    if not klines.empty:
+                        stream_name = f"{symbol.lower()}@kline_{interval}"
+                        self.binance_client.kline_streamer.klines[stream_name] = klines
+                        self.logger.info(f"Cargados {len(klines)} klines históricos para {symbol} ({interval})")
+                    else:
+                        self.logger.warning(f"No se pudieron cargar klines históricos para {symbol} ({interval})")
+                    await asyncio.sleep(0.5) # Pequeña pausa para no sobrecargar la API
+                except Exception as e:
+                    self.logger.error(f"Error cargando klines históricos para {symbol} ({interval}): {e}")
+
     async def analyze_markets_safe(self) -> List[Dict]:
-        """
-        Analizar todos los mercados configurados con manejo robusto de errores
-        
-        Returns:
-            Lista de análisis de mercado
-        """
+        """Analizar todos los mercados configurados"""
         analysis_results = []
-        
         try:
             self.logger.info(f"🔍 Iniciando análisis de mercados (Ciclo #{self.cycle_count})")
             
             for symbol in config.SYMBOLS:
                 try:
                     self.logger.debug(f"Analizando {symbol}")
-                    
-                    # Verificar conexión antes de analizar
-                    if not self.binance_client.test_connection():
-                        self.logger.warning("Conexión perdida, reintentando...")
-                        await asyncio.sleep(5)
-                        continue
-                    
                     analysis = self.trading_strategy.analyze_symbol(symbol)
-                    if analysis:
+                    if analysis and analysis.get('signal') != 'HOLD':
                         analysis_results.append(analysis)
-                        
-                        # Log del análisis
-                        self.logger.log_market_analysis(
-                            symbol, 
-                            "15m/4h", 
-                            {
-                                'signal': analysis['signal'],
-                                'trend_4h': analysis['trend_4h'],
-                                'rsi_15m': analysis['rsi_15m'],
-                                'confidence': analysis['confidence']
-                            }
-                        )
-                        
                         self.logger.info(f"📊 {symbol}: {analysis['signal']} (Confianza: {analysis['confidence']:.2f})")
+                    elif analysis:
+                         self.logger.info(f"📊 {symbol}: {analysis['signal']} (Confianza: {analysis['confidence']:.2f})")
                     else:
                         self.logger.warning(f"No se pudo obtener análisis para {symbol}")
                         
@@ -149,29 +136,12 @@ class RobustTradingBot:
             return []
     
     async def execute_trades_safe(self, analysis_results: List[Dict]) -> None:
-        """
-        Ejecutar operaciones basadas en los análisis con manejo robusto de errores
-        
-        Args:
-            analysis_results: Lista de análisis de mercado
-        """
+        """Ejecutar operaciones basadas en los análisis"""
         try:
-            if not analysis_results:
-                self.logger.debug("No hay análisis para procesar")
-                return
-            
-            trading_signals = [a for a in analysis_results if a['signal'] != 'HOLD']
-            
-            if not trading_signals:
-                self.logger.info("📊 No hay señales de trading en este ciclo")
-                return
-            
-            # Filtrar señales por umbral de confianza
-            high_confidence_signals = [a for a in trading_signals if a['confidence'] >= config.CONFIDENCE_THRESHOLD]
+            high_confidence_signals = [a for a in analysis_results if a['confidence'] >= config.CONFIDENCE_THRESHOLD and a['signal'] != 'HOLD']
             
             if not high_confidence_signals:
-                low_conf_count = len(trading_signals)
-                self.logger.info(f"📊 {low_conf_count} señales detectadas pero ninguna supera el umbral de confianza ({config.CONFIDENCE_THRESHOLD:.2f})")
+                self.logger.info("📊 No hay señales de alta confianza para operar en este ciclo")
                 return
 
             self.logger.info(f"🎯 Procesando {len(high_confidence_signals)} señales de trading con alta confianza")
@@ -181,80 +151,51 @@ class RobustTradingBot:
                     symbol = analysis['symbol']
                     signal = analysis['signal']
                     
-                    # Verificar si se puede abrir nueva posición
                     if not self.risk_manager.can_open_new_position():
                         self.logger.warning("⚠️ No se pueden abrir más posiciones (límite alcanzado)")
                         break
                     
-                    # Verificar que no hay posición existente para este símbolo
                     if self.position_manager.get_position(symbol):
                         self.logger.warning(f"⚠️ Ya existe posición para {symbol}")
                         continue
                     
-                    # Calcular parámetros de la operación
                     entry_price = analysis['current_price']
                     stop_loss = self.risk_manager.calculate_stop_loss(symbol, signal, entry_price)
                     take_profit = self.risk_manager.calculate_take_profit(entry_price, stop_loss, signal)
-                    
-                    # Calcular tamaño de posición en USDT
                     balance = self.binance_client.get_account_balance()
                     position_size_usdt = self.risk_manager.calculate_position_size(balance, entry_price, stop_loss)
                     
-                    # Validar límites de riesgo
-                    if not self.risk_manager.check_risk_limits(position_size_usdt, balance):
-                        self.logger.warning(f"⚠️ Operación rechazada por límites de riesgo: {symbol}")
-                        continue
-                    
-                    # Validar parámetros de la operación
                     if not self.risk_manager.validate_trade_parameters(symbol, signal, entry_price, stop_loss, take_profit, position_size_usdt):
                         self.logger.warning(f"⚠️ Parámetros de operación inválidos para {symbol}")
                         continue
 
                     self.logger.info(f"🚀 Ejecutando señal {signal} para {symbol} con tamaño {position_size_usdt:.2f} USDT")
+                    # Aquí iría la lógica para ejecutar la orden
                     
                 except Exception as e:
                     self.logger.log_error(f"Error al ejecutar operación para {analysis.get('symbol', 'UNKNOWN')}", e)
-                    continue
                     
         except Exception as e:
             self.logger.log_error("Error crítico en ejecución de trades", e)
     
     async def monitor_positions_safe(self) -> None:
-        """Monitorear posiciones existentes con manejo robusto de errores"""
-        try:
-            positions = self.position_manager.get_all_positions()
-            if positions:
-                self.logger.debug(f"Monitoreando {len(positions)} posiciones")
-                # Aquí iría la lógica de monitoreo de posiciones
-            
-        except Exception as e:
-            self.logger.log_error("Error al monitorear posiciones", e)
+        """Monitorear posiciones existentes"""
+        # Lógica de monitoreo
+        pass
     
     async def run_cycle_safe(self) -> bool:
-        """
-        Ejecutar un ciclo completo del bot con manejo robusto de errores
-        
-        Returns:
-            True si el ciclo fue exitoso
-        """
+        """Ejecutar un ciclo completo del bot"""
         try:
             self.cycle_count += 1
             cycle_start = time.time()
-            
             self.logger.debug(f"🔄 Iniciando ciclo #{self.cycle_count}")
             
-            # Analizar mercados
             analysis_results = await self.analyze_markets_safe()
-            
-            # Ejecutar operaciones
             await self.execute_trades_safe(analysis_results)
-            
-            # Monitorear posiciones existentes
             await self.monitor_positions_safe()
             
             cycle_duration = time.time() - cycle_start
             self.last_successful_cycle = time.time()
-            
             self.logger.info(f"✅ Ciclo #{self.cycle_count} completado en {cycle_duration:.2f}s")
             return True
             
@@ -263,7 +204,7 @@ class RobustTradingBot:
             return False
     
     async def run(self) -> None:
-        """Ejecutar el bucle principal del bot con reintentos automáticos"""
+        """Ejecutar el bucle principal del bot"""
         try:
             self.running = True
             self.logger.log_bot_status("RUNNING", "Bot iniciado correctamente")
@@ -271,47 +212,15 @@ class RobustTradingBot:
             print(f"📊 Monitoreando: {', '.join(config.SYMBOLS)}")
             print(f"⏱️ Intervalo: {config.BOT_RUN_INTERVAL} segundos")
             
-            consecutive_failures = 0
-            max_failures = 5
-            
             while self.running:
-                try:
-                    # Ejecutar ciclo
-                    success = await self.run_cycle_safe()
-                    
-                    if success:
-                        consecutive_failures = 0
-                    else:
-                        consecutive_failures += 1
-                        self.logger.warning(f"⚠️ Fallo consecutivo #{consecutive_failures}")
-                        
-                        if consecutive_failures >= max_failures:
-                            self.logger.error(f"❌ Máximo de fallos consecutivos alcanzado ({max_failures})")
-                            break
-                    
-                    # Esperar antes del próximo ciclo
-                    self.logger.debug(f"⏳ Esperando {config.BOT_RUN_INTERVAL} segundos...")
-                    await asyncio.sleep(config.BOT_RUN_INTERVAL)
-                    
-                except asyncio.CancelledError:
-                    self.logger.info("🛑 Bot cancelado")
-                    break
-                except Exception as e:
-                    consecutive_failures += 1
-                    self.logger.log_error(f"Error en bucle principal (fallo #{consecutive_failures})", e)
-                    
-                    if consecutive_failures >= max_failures:
-                        self.logger.error(f"❌ Demasiados fallos consecutivos, deteniendo bot")
-                        break
-                    
-                    # Esperar antes de reintentar
-                    await asyncio.sleep(30)
+                await self.run_cycle_safe()
+                self.logger.debug(f"⏳ Esperando {config.BOT_RUN_INTERVAL} segundos...")
+                await asyncio.sleep(config.BOT_RUN_INTERVAL)
             
-            self.logger.log_bot_status("STOPPING", "Bot detenido")
-            
+        except asyncio.CancelledError:
+            self.logger.info("🛑 Bot cancelado")
         except Exception as e:
             self.logger.log_error("Error crítico en el bucle principal", e)
-            self.running = False
         finally:
             await self.shutdown()
     
@@ -321,7 +230,10 @@ class RobustTradingBot:
             self.logger.log_bot_status("SHUTDOWN", "Iniciando cierre seguro")
             print("🛑 Cerrando bot de forma segura...")
             
-            # Guardar posiciones
+            if self.binance_client:
+                self.binance_client.stop_kline_stream()
+                print("🔌 Stream de datos detenido")
+
             if self.position_manager:
                 self.position_manager.save_positions_to_file()
                 print("💾 Posiciones guardadas")
@@ -339,49 +251,20 @@ async def main():
     print("=" * 60)
     print("🤖 MANUS TRADING BOT - VERSIÓN ROBUSTA")
     print("=" * 60)
-    print("🎯 Estrategia: Confluencia multi-temporal")
-    print("⚡ Modo: 24/7 Producción")
-    print("=" * 60)
     
-    max_restarts = 3
-    restart_count = 0
-    
-    while restart_count < max_restarts:
-        try:
-            print(f"\n🚀 Iniciando bot (Intento #{restart_count + 1})")
-            
-            bot = RobustTradingBot()
-            
-            if not bot.initialize_components():
-                print("❌ Error: No se pudieron inicializar los componentes del bot")
-                restart_count += 1
-                if restart_count < max_restarts:
-                    print(f"⏳ Reintentando en 30 segundos...")
-                    await asyncio.sleep(30)
-                    continue
-                else:
-                    sys.exit(1)
-            
+    bot = RobustTradingBot()
+    try:
+        if await bot.initialize_components():
             print("✅ Bot inicializado correctamente")
             print("🔄 Presiona Ctrl+C para detener")
-            
             await bot.run()
-            break  # Salida normal
-            
-        except KeyboardInterrupt:
-            print("\n🛑 Bot detenido por el usuario")
-            break
-        except Exception as e:
-            restart_count += 1
-            print(f"❌ Error crítico: {e}")
-            print(f"📊 Traceback: {traceback.format_exc()}")
-            
-            if restart_count < max_restarts:
-                print(f"🔄 Reiniciando automáticamente en 60 segundos... (Intento {restart_count + 1}/{max_restarts})")
-                await asyncio.sleep(60)
-            else:
-                print(f"❌ Máximo de reinicios alcanzado ({max_restarts})")
-                sys.exit(1)
+    except KeyboardInterrupt:
+        print("\n🛑 Bot detenido por el usuario")
+    except Exception as e:
+        print(f"❌ Error crítico: {e}")
+        print(f"📊 Traceback: {traceback.format_exc()}")
+    finally:
+        await bot.shutdown()
 
 if __name__ == "__main__":
     asyncio.run(main())

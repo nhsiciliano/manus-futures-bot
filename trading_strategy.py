@@ -41,20 +41,23 @@ class TradingStrategy:
         }
         
         try:
-            # Obtener datos de 4h para tendencia principal
-            klines_4h = self.binance_client.get_klines(symbol, config.INTERVAL_4H, 200)
+            # Obtener datos de 4h para tendencia principal desde el stream
+            klines_4h = self.binance_client.kline_streamer.get_klines(symbol, config.INTERVAL_4H)
             if klines_4h is None or klines_4h.empty:
-                self.logger.warning(f"No se pudieron obtener datos de 4h para {symbol}")
+                self.logger.warning(f"Datos de 4h para {symbol} no disponibles en el stream todavía.")
                 return analysis_result
             
-            # Obtener datos de 15m para señales de entrada
-            klines_15m = self.binance_client.get_klines(symbol, config.INTERVAL_15M, 100)
+            # Obtener datos de 15m para señales de entrada desde el stream
+            klines_15m = self.binance_client.kline_streamer.get_klines(symbol, config.INTERVAL_15M)
             if klines_15m is None or klines_15m.empty:
-                self.logger.warning(f"No se pudieron obtener datos de 15m para {symbol}")
+                self.logger.warning(f"Datos de 15m para {symbol} no disponibles en el stream todavía.")
                 return analysis_result
             
-            # Precio actual
+            # Precio actual desde el stream
             current_price = self.binance_client.get_current_price(symbol)
+            if current_price is None:
+                self.logger.warning(f"Precio actual para {symbol} no disponible en el stream todavía.")
+                return analysis_result
             analysis_result['current_price'] = current_price
             
             # Análisis de tendencia principal (4h)

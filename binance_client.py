@@ -1,24 +1,113 @@
 import logging
 import time
+import asyncio
+from threading import Thread, Lock
 from typing import Dict, List, Optional, Any
+from binance import AsyncClient
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
+from binance.websockets import BinanceSocketManager
 import pandas as pd
+import config
+
+class KlineDataStreamer:
+    """Gestiona el stream de datos de klines a través de websockets"""
+    
+    def __init__(self, client: AsyncClient):
+        self.client = client
+        self.bsm = BinanceSocketManager(self.client)
+        self.klines: Dict[str, pd.DataFrame] = {}
+        self.current_prices: Dict[str, float] = {}
+        self.lock = Lock()
+        self.logger = logging.getLogger(__name__)
+        self.streams = {}
+        self.is_running = False
+
+    async def _process_message(self, msg: Dict):
+        """Procesa un mensaje del websocket de klines"""
+        try:
+            if msg['e'] == 'error':
+                self.logger.error(f"Error en websocket: {msg['m']}")
+                return
+
+            symbol = msg['s']
+            interval = msg['k']['i']
+            kline_data = msg['k']
+            
+            df_new_row = pd.DataFrame({
+                'timestamp': [pd.to_datetime(kline_data['t'], unit='ms')],
+                'open': [float(kline_data['o'])],
+                'high': [float(kline_data['h'])],
+                'low': [float(kline_data['l'])],
+                'close': [float(kline_data['c'])],
+                'volume': [float(kline_data['v'])]
+            }).set_index('timestamp')
+
+            stream_name = f"{symbol.lower()}@kline_{interval}"
+
+            with self.lock:
+                self.current_prices[symbol] = float(kline_data['c'])
+                
+                if stream_name not in self.klines:
+                    self.klines[stream_name] = df_new_row
+                else:
+                    # Si la vela es nueva, la añadimos. Si no, actualizamos la última.
+                    if df_new_row.index[0] > self.klines[stream_name].index[-1]:
+                        self.klines[stream_name] = pd.concat([self.klines[stream_name], df_new_row])
+                        # Mantener un tamaño máximo para no consumir memoria infinita
+                        self.klines[stream_name] = self.klines[stream_name].tail(1000) 
+                    else:
+                        self.klines[stream_name].iloc[-1] = df_new_row.iloc[0]
+
+        except Exception as e:
+            self.logger.error(f"Error procesando mensaje de kline: {e}")
+
+    async def start_stream(self):
+        """Inicia los streams de klines para los símbolos configurados"""
+        self.is_running = True
+        self.logger.info("Iniciando streams de klines...")
+        
+        streams = []
+        for symbol in config.SYMBOLS:
+            streams.append(f"{symbol.lower()}@kline_{config.INTERVAL_15M}")
+            streams.append(f"{symbol.lower()}@kline_{config.INTERVAL_4H}")
+
+        self.logger.info(f"Suscrito a los siguientes streams: {streams}")
+        
+        self.multiplex_socket = self.bsm.futures_multiplex_socket(streams)
+        async with self.multiplex_socket as ms:
+            while self.is_running:
+                msg = await ms.recv()
+                await self._process_message(msg)
+
+    def get_klines(self, symbol: str, interval: str) -> Optional[pd.DataFrame]:
+        """Obtiene los datos de klines para un símbolo e intervalo"""
+        stream_name = f"{symbol.lower()}@kline_{interval}"
+        with self.lock:
+            return self.klines.get(stream_name, None)
+
+    def get_current_price(self, symbol: str) -> Optional[float]:
+        """Obtiene el precio actual de un símbolo"""
+        with self.lock:
+            return self.current_prices.get(symbol, None)
+
+    def stop_stream(self):
+        """Detiene el stream de websockets"""
+        self.is_running = False
+        self.logger.info("Deteniendo streams de klines...")
 
 class BinanceAPIClient:
     """Cliente para interactuar con la API de Binance Futures"""
     
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self):
         """
         Inicializar el cliente de Binance
-        
-        Args:
-            api_key: Clave API de Binance
-            api_secret: Clave secreta de Binance
         """
-        self.api_key = api_key
-        self.api_secret = api_secret
+        self.api_key = config.BINANCE_API_KEY
+        self.api_secret = config.BINANCE_API_SECRET
         self.client = None
+        self.async_client = None
+        self.kline_streamer = None
         self.symbol_info = {}
         self.logger = logging.getLogger(__name__)
         self._initialize_client()
@@ -27,13 +116,28 @@ class BinanceAPIClient:
         """Inicializar la conexión con Binance"""
         try:
             self.client = Client(self.api_key, self.api_secret)
+            self.async_client = AsyncClient(self.api_key, self.api_secret)
+            self.kline_streamer = KlineDataStreamer(self.async_client)
             self._fetch_symbol_info()
-            # Configurar apalancamiento seguro para todos los símbolos
             self._set_leverage_for_symbols()
             self.logger.info("Cliente de Binance inicializado correctamente")
         except Exception as e:
             self.logger.error(f"Error al inicializar cliente de Binance: {e}")
             raise
+
+    def start_kline_stream(self):
+        """Iniciar el stream de klines en un hilo separado"""
+        if self.kline_streamer:
+            self.stream_thread = Thread(target=lambda: asyncio.run(self.kline_streamer.start_stream()))
+            self.stream_thread.daemon = True
+            self.stream_thread.start()
+
+    def stop_kline_stream(self):
+        """Detener el stream de klines"""
+        if self.kline_streamer:
+            self.kline_streamer.stop_stream()
+            if self.stream_thread.is_alive():
+                self.stream_thread.join()
 
     def _fetch_symbol_info(self):
         """Obtener y almacenar la información de precisión de los símbolos."""
@@ -47,14 +151,12 @@ class BinanceAPIClient:
             self.logger.info(f"Información de precisión para {len(self.symbol_info)} símbolos cargada.")
         except BinanceAPIException as e:
             self.logger.error(f"Error al obtener información de símbolos de Binance: {e}")
-            # No relanzar para permitir que el bot continúe si la API no está disponible al inicio
     
     def _format_price(self, symbol: str, price: float) -> str:
         """Formatea un precio según la precisión del símbolo."""
         if symbol in self.symbol_info:
             precision = self.symbol_info[symbol]['pricePrecision']
             return f"{price:.{precision}f}"
-        # Si no hay información, devolver como string sin formato
         return str(price)
 
     def _format_quantity(self, symbol: str, quantity: float) -> str:
@@ -62,32 +164,23 @@ class BinanceAPIClient:
         if symbol in self.symbol_info:
             precision = self.symbol_info[symbol]['quantityPrecision']
             return f"{quantity:.{precision}f}"
-        # Si no hay información, devolver como string sin formato
         return str(quantity)
 
     def _set_leverage_for_symbols(self):
         """Configurar apalancamiento para todos los símbolos de trading"""
         try:
-            import config
             leverage = config.LEVERAGE
-            
             for symbol in config.SYMBOLS:
                 try:
                     self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
                     self.logger.info(f"🔧 Apalancamiento configurado: {symbol} = {leverage}x")
                 except Exception as e:
                     self.logger.warning(f"⚠️ No se pudo configurar apalancamiento para {symbol}: {e}")
-                    
         except Exception as e:
             self.logger.error(f"Error al configurar apalancamiento: {e}")
     
     def get_account_balance(self) -> float:
-        """
-        Obtener el balance de la cuenta de futuros
-        
-        Returns:
-            Balance total en USDT
-        """
+        """Obtener el balance de la cuenta de futuros"""
         try:
             account_info = self.client.futures_account()
             total_balance = float(account_info["totalWalletBalance"])
@@ -98,256 +191,71 @@ class BinanceAPIClient:
             return 0.0
     
     def get_klines(self, symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:
-        """
-        Obtener datos de velas (klines)
-        
-        Args:
-            symbol: Par de trading (ej. 'BTCUSDT')
-            interval: Intervalo de tiempo (ej. '15m', '4h')
-            limit: Número de velas a obtener
-            
-        Returns:
-            DataFrame con datos de velas
-        """
+        """Obtener datos de velas (klines) históricos"""
         try:
-            klines = self.client.futures_klines(
-                symbol=symbol,
-                interval=interval,
-                limit=limit
-            )
-            
+            klines = self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
             df = pd.DataFrame(klines, columns=[
                 'timestamp', 'open', 'high', 'low', 'close', 'volume',
                 'close_time', 'quote_asset_volume', 'number_of_trades',
                 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
             ])
-            
-            # Convertir a tipos numéricos
             numeric_columns = ['open', 'high', 'low', 'close', 'volume']
             for col in numeric_columns:
                 df[col] = pd.to_numeric(df[col])
-            
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
-            
-            self.logger.debug(f"Obtenidas {len(df)} velas para {symbol} en {interval}")
+            self.logger.debug(f"Obtenidas {len(df)} velas históricas para {symbol} en {interval}")
             return df
-            
         except BinanceAPIException as e:
-            self.logger.error(f"Error al obtener klines para {symbol}: {e}")
-            return pd.DataFrame() # Asegurarse de devolver un DataFrame vacío en caso de error
-    
+            self.logger.error(f"Error al obtener klines históricos para {symbol}: {e}")
+            return pd.DataFrame()
+
     def get_current_price(self, symbol: str) -> float:
-        """
-        Obtener el precio actual de un símbolo
-        
-        Args:
-            symbol: Par de trading
-            
-        Returns:
-            Precio actual
-        """
+        price = self.kline_streamer.get_current_price(symbol)
+        if price is None:
+            self.logger.warning(f"Precio no disponible en stream para {symbol}, usando REST API.")
+            return self._get_current_price_rest(symbol)
+        return price
+
+    def _get_current_price_rest(self, symbol: str) -> float:
+        """Obtener el precio actual de un símbolo vía REST API"""
         try:
             ticker = self.client.futures_symbol_ticker(symbol=symbol)
             price = float(ticker["price"])
-            self.logger.debug(f"Precio actual de {symbol}: {price}")
+            self.logger.debug(f"Precio actual de {symbol} (REST): {price}")
             return price
         except BinanceAPIException as e:
-            self.logger.error(f"Error al obtener precio de {symbol}: {e}")
+            self.logger.error(f"Error al obtener precio de {symbol} (REST): {e}")
             return 0.0
-    
-    def place_market_order(self, symbol: str, side: str, quantity: float) -> Dict:
-        """
-        Colocar una orden de mercado
-        
-        Args:
-            symbol: Par de trading
-            side: 'BUY' o 'SELL'
-            quantity: Cantidad a operar
-            
-        Returns:
-            Información de la orden
-        """
-        try:
-            quantity = self._format_quantity(symbol, quantity)
-            order = self.client.futures_create_order(
-                symbol=symbol,
-                side=side,
-                type='MARKET',
-                quantity=quantity
-            )
-            self.logger.info(f"Orden de mercado colocada: {side} {quantity} {symbol}")
-            return order
-        except BinanceOrderException as e:
-            self.logger.error(f"Error al colocar orden de mercado: {e}")
-            return {}
-    
-    def place_stop_loss_order(self, symbol: str, side: str, quantity: float, stop_price: float) -> Dict:
-        """
-        Colocar una orden de stop loss
-        
-        Args:
-            symbol: Par de trading
-            side: 'BUY' o 'SELL'
-            quantity: Cantidad
-            stop_price: Precio de activación del stop
-            
-        Returns:
-            Información de la orden
-        """
-        try:
-            quantity = self._format_quantity(symbol, quantity)
-            stop_price = self._format_price(symbol, stop_price)
-            order = self.client.futures_create_order(
-                symbol=symbol,
-                side=side,
-                type='STOP_MARKET',
-                quantity=quantity,
-                stopPrice=stop_price
-            )
-            self.logger.info(f"Stop loss colocado: {side} {quantity} {symbol} @ {stop_price}")
-            return order
-        except BinanceOrderException as e:
-            self.logger.error(f"Error al colocar stop loss: {e}")
-            return {}
-    
-    def place_take_profit_order(self, symbol: str, side: str, quantity: float, price: float) -> Dict:
-        """
-        Colocar una orden de take profit
-        
-        Args:
-            symbol: Par de trading
-            side: 'BUY' o 'SELL'
-            quantity: Cantidad
-            price: Precio objetivo
-            
-        Returns:
-            Información de la orden
-        """
-        try:
-            quantity = self._format_quantity(symbol, quantity)
-            price = self._format_price(symbol, price)
-            order = self.client.futures_create_order(
-                symbol=symbol,
-                side=side,
-                type='TAKE_PROFIT_MARKET',
-                quantity=quantity,
-                stopPrice=price
-            )
-            self.logger.info(f"Take profit colocado: {side} {quantity} {symbol} @ {price}")
-            return order
-        except BinanceOrderException as e:
-            self.logger.error(f"Error al colocar take profit: {e}")
-            return {}
-    
+
     def place_futures_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET') -> Dict:
-        """
-        Colocar una orden de futuros en Binance
-        
-        Args:
-            symbol: Par de trading (ej. 'BTCUSDT')
-            side: 'BUY' o 'SELL'
-            quantity: Cantidad a operar
-            order_type: Tipo de orden ('MARKET', 'LIMIT', etc.)
-            
-        Returns:
-            Información de la orden ejecutada
-        """
+        """Colocar una orden de futuros en Binance"""
         try:
             quantity = self._format_quantity(symbol, quantity)
             self.logger.info(f"🔄 Ejecutando orden {side} {order_type} para {quantity} {symbol}")
-            
-            # Crear la orden en Binance Futures
             order = self.client.futures_create_order(
                 symbol=symbol,
                 side=side,
                 type=order_type,
                 quantity=quantity
             )
-            
-            self.logger.info(f"✅ Orden ejecutada exitosamente:")
-            self.logger.info(f"   📋 Order ID: {order.get('orderId')}")
-            self.logger.info(f"   💰 Cantidad: {order.get('executedQty', quantity)}")
-            self.logger.info(f"   💵 Precio promedio: {order.get('avgPrice', 'N/A')}")
-            
+            self.logger.info(f"✅ Orden ejecutada exitosamente: {order}")
             return order
-            
         except BinanceOrderException as e:
             self.logger.error(f"❌ Error al ejecutar orden {side} para {symbol}: {e}")
-            self.handle_api_error(e)
             return {}
-        except BinanceAPIException as e:
-            self.logger.error(f"❌ Error de API al ejecutar orden: {e}")
-            self.handle_api_error(e)
-            return {}
-        except Exception as e:
-            self.logger.error(f"❌ Error inesperado al ejecutar orden: {e}")
-            return {}
-    
-    def cancel_order(self, symbol: str, order_id: int) -> bool:
-        """
-        Cancelar una orden
-        
-        Args:
-            symbol: Par de trading
-            order_id: ID de la orden
-            
-        Returns:
-            True si se canceló exitosamente
-        """
-        try:
-            self.client.futures_cancel_order(symbol=symbol, orderId=order_id)
-            self.logger.info(f"Orden {order_id} cancelada para {symbol}")
-            return True
-        except BinanceOrderException as e:
-            self.logger.error(f"Error al cancelar orden {order_id}: {e}")
-            return False
-    
+
     def get_open_positions(self) -> List[Dict]:
-        """
-        Obtener posiciones abiertas
-        
-        Returns:
-            Lista de posiciones abiertas
-        """
+        """Obtener posiciones abiertas"""
         try:
             positions = self.client.futures_position_information()
-            open_positions = [
-                pos for pos in positions 
-                if float(pos["positionAmt"]) != 0
-            ]
-            self.logger.debug(f"Posiciones abiertas: {len(open_positions)}")
-            return open_positions
+            return [p for p in positions if float(p['positionAmt']) != 0]
         except BinanceAPIException as e:
             self.logger.error(f"Error al obtener posiciones: {e}")
             return []
-    
-    def handle_api_error(self, error: Exception) -> None:
-        """
-        Manejar errores de la API
-        
-        Args:
-            error: Excepción capturada
-        """
-        if isinstance(error, BinanceAPIException):
-            if error.code == -1021:  # Timestamp out of sync
-                self.logger.warning("Timestamp fuera de sincronización, reintentando...")
-                time.sleep(1)
-            elif error.code == -1003:  # Rate limit
-                self.logger.warning("Límite de velocidad alcanzado, esperando...")
-                time.sleep(60)
-            else:
-                self.logger.error(f"Error de API de Binance: {error.code} - {error.message}")
-        else:
-            self.logger.error(f"Error inesperado: {error}")
-    
+
     def test_connection(self) -> bool:
-        """
-        Probar la conexión con Binance
-        
-        Returns:
-            True si la conexión es exitosa
-        """
+        """Probar la conexión con Binance"""
         try:
             self.client.futures_ping()
             self.logger.info("Conexión con Binance exitosa")
