@@ -3,7 +3,7 @@ services:
     name: manus-trading-bot
     env: python
     buildCommand: chmod +x install_deps.sh && ./install_deps.sh
-    startCommand: python main.py
+    startCommand: python main_robust.py
     plan: starter
     envVars:
       - key: BINANCE_API_KEY

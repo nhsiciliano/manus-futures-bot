@@ -33,4 +33,4 @@ RUN mkdir -p /app/logs
 EXPOSE 8000
 
 # Comando para ejecutar el bot
-CMD ["python", "main.py"]
+CMD ["python", "main_robust.py"]

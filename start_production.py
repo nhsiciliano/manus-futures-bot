@@ -24,7 +24,7 @@ async def start_bot():
         logger.info(f"Timestamp: {datetime.now()}")
         
         # Importar y ejecutar el bot principal
-        from main import main
+        from main_robust import main_with_retry as main
         await main()
         
     except KeyboardInterrupt:

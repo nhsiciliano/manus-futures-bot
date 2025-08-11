@@ -60,7 +60,7 @@ class RobustTradingBot:
             
             # Inicializar cliente de Binance
             print("📡 Conectando a Binance API...")
-            self.binance_client = BinanceAPIClient(config.BINANCE_API_KEY, config.BINANCE_API_SECRET)
+            self.binance_client = BinanceAPIClient()
             
             # Probar conexión
             if not self.binance_client.test_connection():
@@ -304,32 +304,32 @@ class RobustTradingBot:
                 self.logger.info(f"📋 Order ID: {order_result.get('orderId')}")
 
                 # Colocar órdenes de Stop Loss y Take Profit
-                quantity = position_size_usdt / entry_price
-                exit_side = 'SELL' if signal == 'LONG' else 'BUY'
+                # quantity = position_size_usdt / entry_price
+                # exit_side = 'SELL' if signal == 'LONG' else 'BUY'
 
-                self.logger.info(f"🛡️ Colocando orden Stop Loss para {symbol}...")
-                sl_order_result = self.binance_client.place_stop_loss_order(
-                    symbol=symbol,
-                    side=exit_side,
-                    quantity=quantity,
-                    stop_price=stop_loss
-                )
-                if sl_order_result:
-                    self.logger.info(f"✅ Orden Stop Loss colocada: ID {sl_order_result.get('orderId')}")
-                else:
-                    self.logger.error(f"❌ Error al colocar orden Stop Loss para {symbol}")
+                # self.logger.info(f"🛡️ Colocando orden Stop Loss para {symbol}...")
+                # sl_order_result = self.binance_client.place_stop_loss_order(
+                #     symbol=symbol,
+                #     side=exit_side,
+                #     quantity=quantity,
+                #     stop_price=stop_loss
+                # )
+                # if sl_order_result:
+                #     self.logger.info(f"✅ Orden Stop Loss colocada: ID {sl_order_result.get('orderId')}")
+                # else:
+                #     self.logger.error(f"❌ Error al colocar orden Stop Loss para {symbol}")
 
-                self.logger.info(f"🎯 Colocando orden Take Profit para {symbol}...")
-                tp_order_result = self.binance_client.place_take_profit_order(
-                    symbol=symbol,
-                    side=exit_side,
-                    quantity=quantity,
-                    price=take_profit
-                )
-                if tp_order_result:
-                    self.logger.info(f"✅ Orden Take Profit colocada: ID {tp_order_result.get('orderId')}")
-                else:
-                    self.logger.error(f"❌ Error al colocar orden Take Profit para {symbol}")
+                # self.logger.info(f"🎯 Colocando orden Take Profit para {symbol}...")
+                # tp_order_result = self.binance_client.place_take_profit_order(
+                #     symbol=symbol,
+                #     side=exit_side,
+                #     quantity=quantity,
+                #     price=take_profit
+                # )
+                # if tp_order_result:
+                #     self.logger.info(f"✅ Orden Take Profit colocada: ID {tp_order_result.get('orderId')}")
+                # else:
+                #     self.logger.error(f"❌ Error al colocar orden Take Profit para {symbol}")
 
                 # Enviar notificación a Telegram
                 telegram_message = (
