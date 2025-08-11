@@ -44,7 +44,7 @@ class RobustTradingBot:
         print("\nSeñal de cierre recibida. Cerrando bot de forma segura...")
         self.running = False
     
-    def initialize_components(self) -> bool:
+    async def initialize_components(self) -> bool:
         """
         Inicializar todos los componentes del bot
         
@@ -69,7 +69,16 @@ class RobustTradingBot:
                 return False
             
             print("✅ Conexión a Binance establecida")
+
+            # Iniciar stream de datos de mercado
+            print("🌊 Iniciando stream de datos de mercado...")
+            self.binance_client.start_kline_stream()
+            self.logger.info("Stream de datos de mercado iniciado, esperando para precargar datos...")
             
+            # Esperar a que los datos históricos se carguen
+            await asyncio.sleep(15) # Aumentado a 15s para asegurar la carga
+            print("✅ Stream de datos de mercado iniciado y datos precargados")
+
             # Inicializar estrategia de trading
             print("📊 Inicializando estrategia de trading...")
             self.trading_strategy = TradingStrategy(self.binance_client)
@@ -483,7 +492,7 @@ async def main():
             
             bot = RobustTradingBot()
             
-            if not bot.initialize_components():
+            if not await bot.initialize_components():
                 print("❌ Error: No se pudieron inicializar los componentes del bot")
                 restart_count += 1
                 if restart_count < max_restarts:

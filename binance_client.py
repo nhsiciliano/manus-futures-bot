@@ -76,8 +76,28 @@ class KlineDataStreamer:
         except Exception as e:
             self.logger.error(f"Error procesando mensaje de kline: {e} - Mensaje: {msg}", exc_info=True)
 
-    async def start_stream(self):
+    async def prefill_historical_data(self, client: 'BinanceAPIClient'):
+        self.logger.info("Prefilling historical kline data...")
+        for symbol in config.SYMBOLS:
+            for interval in [config.INTERVAL_4H, config.INTERVAL_15M]:
+                try:
+                    self.logger.info(f"Fetching historical data for {symbol} - {interval}")
+                    historical_klines = client.get_klines(symbol, interval, limit=1000)
+                    if not historical_klines.empty:
+                        stream_name = f"{symbol.lower()}@kline_{interval}"
+                        with self.lock:
+                            self.klines[stream_name] = historical_klines
+                        self.logger.info(f"Prefilled {len(historical_klines)} klines for {symbol} - {interval}")
+                    else:
+                        self.logger.warning(f"Could not prefill historical data for {symbol} - {interval}")
+                except Exception as e:
+                    self.logger.error(f"Error prefilling historical data for {symbol} - {interval}: {e}")
+                await asyncio.sleep(0.25)
+
+    async def start_stream(self, client: 'BinanceAPIClient'):
         """Inicia los streams de klines para los símbolos configurados"""
+        await self.prefill_historical_data(client)
+        
         self.is_running = True
         self.logger.info("Iniciando streams de klines...")
         
@@ -142,7 +162,7 @@ class BinanceAPIClient:
     def start_kline_stream(self):
         """Iniciar el stream de klines en un hilo separado"""
         if self.kline_streamer:
-            self.stream_thread = Thread(target=lambda: asyncio.run(self.kline_streamer.start_stream()))
+            self.stream_thread = Thread(target=lambda: asyncio.run(self.kline_streamer.start_stream(self)))
             self.stream_thread.daemon = True
             self.stream_thread.start()
 
