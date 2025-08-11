@@ -18,7 +18,7 @@ import config
 config.BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
 config.BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
 
-from main import TradingBot
+from main import RobustTradingBot
 from binance_client import BinanceAPIClient
 from trading_strategy import TradingStrategy
 from risk_manager import RiskManager
@@ -75,14 +75,11 @@ async def test_bot_initialization():
         mock_binance_client_instance.get_current_price.return_value = 20300.0
         mock_binance_client_instance.get_account_balance.return_value = 1000.0
         mock_binance_client_instance.get_open_positions.return_value = []
-        mock_binance_client_instance.place_market_order.return_value = {'orderId': '12345'}
-        mock_binance_client_instance.place_stop_loss_order.return_value = {'orderId': '12346'}
-        mock_binance_client_instance.place_take_profit_order.return_value = {'orderId': '12347'}
-        mock_binance_client_instance.cancel_order.return_value = True
+        mock_binance_client_instance.place_futures_order.return_value = {'orderId': '12345'}
 
         MockBinanceAPIClientClass.return_value = mock_binance_client_instance
 
-        bot = TradingBot()
+        bot = RobustTradingBot()
         
         # Desactivar el logger real para no escribir en archivo durante la prueba
         with patch.object(bot, 'logger', new=MagicMock()):
@@ -103,13 +100,13 @@ async def test_bot_initialization():
                 
                 # Simular un ciclo de análisis (sin ejecución de trades reales)
                 print("Simulando un ciclo de análisis de mercado...")
-                analysis_results = await bot.analyze_markets()
+                analysis_results = await bot.analyze_markets_safe()
                 print(f"Análisis completado para {len(analysis_results)} símbolos.")
                 print("✅ Ciclo de análisis simulado con éxito.")
                 
                 # Simular monitoreo de posiciones (sin trades reales)
                 print("Simulando monitoreo de posiciones...")
-                await bot.monitor_positions()
+                await bot.monitor_positions_safe()
                 print("✅ Monitoreo de posiciones simulado con éxito.")
                 
             else:
