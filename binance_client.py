@@ -44,14 +44,20 @@ class KlineDataStreamer:
             kline_data = data['k']
             interval = kline_data['i']
             
-            df_new_row = pd.DataFrame({
-                'timestamp': [pd.to_datetime(kline_data['t'], unit='ms')],
-                'open': [float(kline_data['o'])],
-                'high': [float(kline_data['h'])],
-                'low': [float(kline_data['l'])],
-                'close': [float(kline_data['c'])],
-                'volume': [float(kline_data['v'])]
-            }).set_index('timestamp')
+            df_new_row = pd.DataFrame([{
+                'timestamp': pd.to_datetime(kline_data['t'], unit='ms'),
+                'open': float(kline_data['o']),
+                'high': float(kline_data['h']),
+                'low': float(kline_data['l']),
+                'close': float(kline_data['c']),
+                'volume': float(kline_data['v']),
+                'close_time': kline_data['T'],
+                'quote_asset_volume': float(kline_data['q']),
+                'number_of_trades': kline_data['n'],
+                'taker_buy_base_asset_volume': float(kline_data['V']),
+                'taker_buy_quote_asset_volume': float(kline_data['Q']),
+                'ignore': 0
+            }]).set_index('timestamp')
 
             stream_name = f"{symbol.lower()}@kline_{interval}"
 
@@ -207,7 +213,8 @@ class BinanceAPIClient:
                 'close_time', 'quote_asset_volume', 'number_of_trades',
                 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
             ])
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume', 
+                               'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume']
             for col in numeric_columns:
                 df[col] = pd.to_numeric(df[col])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
