@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Any
 from binance import AsyncClient
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
-from binance.websockets import BinanceSocketManager
+from binance import BinanceSocketManager
 import pandas as pd
 import config
 
