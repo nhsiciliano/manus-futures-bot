@@ -188,6 +188,7 @@ class BinanceAPIClient:
                 try:
                     self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
                     self.logger.info(f"🔧 Apalancamiento configurado: {symbol} = {leverage}x")
+                    time.sleep(0.25)  # Retardo para no exceder los límites de la API
                 except Exception as e:
                     self.logger.warning(f"⚠️ No se pudo configurar apalancamiento para {symbol}: {e}")
         except Exception as e:
