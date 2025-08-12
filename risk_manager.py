@@ -21,6 +21,7 @@ class RiskManager:
         self.max_concurrent_trades = config.MAX_CONCURRENT_TRADES
         self.risk_reward_ratio = config.RISK_REWARD_RATIO
         self.trailing_stop_percent = config.TRAILING_STOP_PERCENT
+        self.min_position_size_usdt = config.MIN_POSITION_SIZE_USDT
     
     def calculate_position_size(self, account_balance: float, entry_price: float, 
                               stop_loss_price: float) -> float:
@@ -43,7 +44,8 @@ class RiskManager:
                 return 0.0
 
             max_risk_usdt = account_balance * self.max_risk_per_trade
-            position_size_based_on_risk = max_risk_usdt / distance_to_sl
+            risk_per_asset = distance_to_sl / entry_price
+            position_size_based_on_risk = max_risk_usdt / risk_per_asset
             
             # 2. Calcular el tamaño máximo de posición permitido
             max_position_size_usdt = account_balance * self.max_position_size_percent
@@ -188,7 +190,7 @@ class RiskManager:
                 return False
             
             # Verificar que el tamaño mínimo sea viable
-            if position_size_usdt < 2:  # Mínimo 2 USDT
+            if position_size_usdt < self.min_position_size_usdt:  # Mínimo 2 USDT
                 self.logger.warning(f"Tamaño de posición muy pequeño: {position_size_usdt}")
                 return False
             
