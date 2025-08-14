@@ -33,6 +33,7 @@ TRAILING_STOP_PERCENT = float(os.getenv("TRAILING_STOP_PERCENT", "0.0075")) # 0.
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.8"))  # Umbral mínimo de confianza para ejecutar operaciones
 LEVERAGE = int(os.getenv("LEVERAGE", "5"))  # Apalancamiento para futuros (recomendado: 3-10x para estrategias conservadoras)
 MIN_POSITION_SIZE_USDT = float(os.getenv("MIN_POSITION_SIZE_USDT", "2")) # Mínimo 2 USDT por posición
+MIN_STOP_LOSS_PERCENTAGE = float(os.getenv("MIN_STOP_LOSS_PERCENTAGE", "0.02")) # 2% de distancia mínima para el SL
 
 # Configuración de Logging
 LOG_FILE = os.getenv("LOG_FILE", "trading_bot.log")

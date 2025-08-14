@@ -22,6 +22,7 @@ class RiskManager:
         self.risk_reward_ratio = config.RISK_REWARD_RATIO
         self.trailing_stop_percent = config.TRAILING_STOP_PERCENT
         self.min_position_size_usdt = config.MIN_POSITION_SIZE_USDT
+        self.min_stop_loss_percentage = config.MIN_STOP_LOSS_PERCENTAGE
     
     def calculate_position_size(self, account_balance: float, entry_price: float, 
                               stop_loss_price: float) -> float:
@@ -70,7 +71,7 @@ class RiskManager:
     
     def calculate_stop_loss(self, symbol: str, side: str, entry_price: float) -> float:
         """
-        Calcular el precio de stop loss basado en la vela anterior
+        Calcular el precio de stop loss basado en la vela anterior y un % mínimo.
         
         Args:
             symbol: Par de trading
@@ -84,34 +85,50 @@ class RiskManager:
             # Obtener datos de 15m para calcular el stop loss
             klines_15m = self.binance_client.get_klines(symbol, config.INTERVAL_15M, 5)
             
+            # Fallback: usar un porcentaje fijo si no hay datos suficientes
             if klines_15m.empty or len(klines_15m) < 2:
-                self.logger.warning(f"No hay suficientes datos para calcular SL de {symbol}")
-                # Fallback: usar un porcentaje fijo del precio de entrada
+                self.logger.warning(f"No hay suficientes datos para calcular SL de {symbol}, usando fallback de {self.min_stop_loss_percentage * 100}%")
                 if side == 'LONG':
-                    return entry_price * 0.98  # 2% por debajo
+                    return entry_price * (1 - self.min_stop_loss_percentage)
                 else:
-                    return entry_price * 1.02  # 2% por encima
+                    return entry_price * (1 + self.min_stop_loss_percentage)
             
-            # Obtener la vela anterior (penúltima)
+            # --- Lógica de Stop Loss dual ---
             previous_candle = klines_15m.iloc[-2]
             
             if side == 'LONG':
-                # Para posiciones largas, SL un 0.1% por debajo del mínimo de la vela anterior
-                stop_loss = previous_candle['low'] * 0.999
-            else:
-                # Para posiciones cortas, SL un 0.1% por encima del máximo de la vela anterior
-                stop_loss = previous_candle['high'] * 1.001
-            
-            self.logger.debug(f"Stop loss calculado para {symbol} {side}: {stop_loss}")
+                # Opción 1: Basado en la vela anterior (un 0.1% por debajo del mínimo)
+                candle_sl = previous_candle['low'] * 0.999
+                
+                # Opción 2: Basado en un porcentaje mínimo fijo
+                percentage_sl = entry_price * (1 - self.min_stop_loss_percentage)
+                
+                # Elegir el SL que esté más lejos del precio de entrada (el más seguro)
+                stop_loss = min(candle_sl, percentage_sl)
+                
+                self.logger.debug(f"SL para {symbol} LONG: Candle SL={candle_sl:.4f}, Percentage SL={percentage_sl:.4f}. Final SL={stop_loss:.4f}")
+
+            else: # SHORT
+                # Opción 1: Basado en la vela anterior (un 0.1% por encima del máximo)
+                candle_sl = previous_candle['high'] * 1.001
+                
+                # Opción 2: Basado en un porcentaje mínimo fijo
+                percentage_sl = entry_price * (1 + self.min_stop_loss_percentage)
+                
+                # Elegir el SL que esté más lejos del precio de entrada (el más seguro)
+                stop_loss = max(candle_sl, percentage_sl)
+                
+                self.logger.debug(f"SL para {symbol} SHORT: Candle SL={candle_sl:.4f}, Percentage SL={percentage_sl:.4f}. Final SL={stop_loss:.4f}")
+
             return stop_loss
             
         except Exception as e:
             self.logger.error(f"Error al calcular stop loss para {symbol}: {e}")
             # Fallback en caso de error
             if side == 'LONG':
-                return entry_price * 0.98
+                return entry_price * (1 - self.min_stop_loss_percentage)
             else:
-                return entry_price * 1.02
+                return entry_price * (1 + self.min_stop_loss_percentage)
     
     def calculate_take_profit(self, entry_price: float, stop_loss_price: float, 
                             side: str) -> float:
