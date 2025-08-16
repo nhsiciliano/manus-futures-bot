@@ -32,7 +32,7 @@ async def test_bot_initialization():
         
         # Probar inicialización (puede fallar por API keys de prueba)
         print("🔧 Probando inicialización de componentes...")
-        success = bot.initialize_components()
+        success = await bot.initialize_components()
         
         if success:
             print("✅ Componentes inicializados correctamente")

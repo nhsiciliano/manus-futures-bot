@@ -267,19 +267,84 @@ class BinanceAPIClient:
     def place_futures_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET') -> Dict:
         """Colocar una orden de futuros en Binance"""
         try:
-            quantity = self._format_quantity(symbol, quantity)
-            self.logger.info(f"🔄 Ejecutando orden {side} {order_type} para {quantity} {symbol}")
+            quantity_str = self._format_quantity(symbol, quantity)
+            self.logger.info(f"🔄 Ejecutando orden {side} {order_type} para {quantity_str} {symbol}")
+            
             order = self.client.futures_create_order(
                 symbol=symbol,
                 side=side,
                 type=order_type,
-                quantity=quantity
+                quantity=quantity_str
             )
+            
             self.logger.info(f"✅ Orden ejecutada exitosamente: {order}")
             return order
         except BinanceOrderException as e:
             self.logger.error(f"❌ Error al ejecutar orden {side} para {symbol}: {e}")
             return {}
+
+    def place_futures_order_with_sl_tp(self, symbol: str, side: str, quantity: float, 
+                                       stop_loss: float, take_profit: float) -> Optional[Dict]:
+        """
+        Colocar una orden de mercado y luego órdenes de Stop Loss y Take Profit.
+        
+        Args:
+            symbol: Par de trading
+            side: 'BUY' o 'SELL'
+            quantity: Cantidad de la posición
+            stop_loss: Precio de stop loss
+            take_profit: Precio de take profit
+            
+        Returns:
+            El resultado de la orden de mercado inicial o None si falla.
+        """
+        # 1. Colocar la orden de mercado principal
+        market_order = self.place_futures_order(symbol, side, quantity, 'MARKET')
+        
+        if not market_order:
+            self.logger.error(f"No se pudo colocar la orden de mercado para {symbol}. No se colocarán SL/TP.")
+            return None
+            
+        # 2. Determinar el lado de las órdenes de cierre (SL/TP)
+        exit_side = 'SELL' if side == 'BUY' else 'BUY'
+        
+        # Formatear precios y cantidad
+        quantity_str = self._format_quantity(symbol, quantity)
+        stop_loss_str = self._format_price(symbol, stop_loss)
+        take_profit_str = self._format_price(symbol, take_profit)
+
+        # 3. Colocar la orden Stop Loss (STOP_MARKET)
+        try:
+            self.logger.info(f"🛡️ Colocando orden Stop Loss para {symbol} a ${stop_loss_str}")
+            sl_order = self.client.futures_create_order(
+                symbol=symbol,
+                side=exit_side,
+                type='STOP_MARKET',
+                stopPrice=stop_loss_str,
+                quantity=quantity_str,
+                reduceOnly=True
+            )
+            self.logger.info(f"✅ Orden Stop Loss colocada: {sl_order}")
+        except BinanceAPIException as e:
+            self.logger.error(f"❌ Error al colocar orden Stop Loss para {symbol}: {e}")
+            # Aquí se podría añadir lógica para cerrar la posición si el SL falla
+            
+        # 4. Colocar la orden Take Profit (TAKE_PROFIT_MARKET)
+        try:
+            self.logger.info(f"🎯 Colocando orden Take Profit para {symbol} a ${take_profit_str}")
+            tp_order = self.client.futures_create_order(
+                symbol=symbol,
+                side=exit_side,
+                type='TAKE_PROFIT_MARKET',
+                stopPrice=take_profit_str,
+                quantity=quantity_str,
+                reduceOnly=True
+            )
+            self.logger.info(f"✅ Orden Take Profit colocada: {tp_order}")
+        except BinanceAPIException as e:
+            self.logger.error(f"❌ Error al colocar orden Take Profit para {symbol}: {e}")
+
+        return market_order
 
     def get_open_positions(self) -> List[Dict]:
         """Obtener posiciones abiertas"""

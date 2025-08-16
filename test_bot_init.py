@@ -88,7 +88,7 @@ async def test_bot_initialization():
             bot.logger.debug = print
             bot.logger.info = print
 
-            if bot.initialize_components():
+            if await bot.initialize_components():
                 print("✅ Bot inicializado correctamente (simulado).")
                 
                 # Verificar que los componentes se hayan asignado
