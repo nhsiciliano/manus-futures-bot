@@ -164,6 +164,22 @@ class RiskManager:
         except Exception as e:
             self.logger.error(f"Error al calcular take profit: {e}")
             return entry_price
+
+    def calculate_trailing_stop(self, current_price: float, side: str) -> float:
+        """
+        Calcula el nuevo precio del stop loss para el trailing stop.
+        
+        Args:
+            current_price: El precio de mercado actual.
+            side: El lado de la posición ('LONG' o 'SHORT').
+            
+        Returns:
+            El nuevo precio calculado para el stop loss.
+        """
+        if side == 'LONG':
+            return current_price * (1 - self.trailing_stop_percent)
+        else: # SHORT
+            return current_price * (1 + self.trailing_stop_percent)
     
     def can_open_new_position(self) -> bool:
         """
@@ -217,49 +233,7 @@ class RiskManager:
             self.logger.error(f"Error al verificar límites de riesgo: {e}")
             return False
     
-    def update_trailing_stop(self, position: Dict, current_price: float) -> Optional[float]:
-        """
-        Actualizar trailing stop para una posición
-        
-        Args:
-            position: Información de la posición
-            current_price: Precio actual
-            
-        Returns:
-            Nuevo precio de stop loss si debe actualizarse, None en caso contrario
-        """
-        try:
-            symbol = position['symbol']
-            position_amt = float(position['positionAmt'])
-            entry_price = float(position['entryPrice'])
-            
-            # Determinar si es posición larga o corta
-            is_long = position_amt > 0
-            
-            # Calcular el porcentaje de ganancia actual
-            if is_long:
-                profit_percent = (current_price - entry_price) / entry_price
-            else:
-                profit_percent = (entry_price - current_price) / entry_price
-            
-            # Solo activar trailing stop si hay ganancia suficiente
-            if profit_percent >= self.trailing_stop_percent:
-                
-                if is_long:
-                    # Para posiciones largas, trailing stop por debajo del precio actual
-                    new_stop_loss = current_price * (1 - self.trailing_stop_percent)
-                else:
-                    # Para posiciones cortas, trailing stop por encima del precio actual
-                    new_stop_loss = current_price * (1 + self.trailing_stop_percent)
-                
-                self.logger.info(f"Trailing stop activado para {symbol}: {new_stop_loss}")
-                return new_stop_loss
-            
-            return None
-            
-        except Exception as e:
-            self.logger.error(f"Error al actualizar trailing stop: {e}")
-            return None
+    
     
     def validate_trade_parameters(self, symbol: str, side: str, entry_price: float, 
                                 stop_loss: float, take_profit: float, 

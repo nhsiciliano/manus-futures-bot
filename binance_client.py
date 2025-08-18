@@ -346,6 +346,77 @@ class BinanceAPIClient:
 
         return market_order
 
+    def cancel_all_open_orders(self, symbol: str) -> bool:
+        """Cancela todas las órdenes abiertas para un símbolo."""
+        try:
+            open_orders = self.client.futures_get_open_orders(symbol=symbol)
+            if not open_orders:
+                self.logger.info(f"No hay órdenes abiertas para cancelar en {symbol}")
+                return True
+            
+            for order in open_orders:
+                self.client.futures_cancel_order(symbol=symbol, orderId=order['orderId'])
+                self.logger.info(f"Orden {order['orderId']} ({order['type']}) para {symbol} cancelada.")
+            
+            self.logger.info(f"Todas las órdenes abiertas para {symbol} han sido canceladas.")
+            return True
+        except BinanceAPIException as e:
+            self.logger.error(f"Error al cancelar órdenes para {symbol}: {e}")
+            return False
+
+    def update_trailing_stop_order(self, symbol: str, side: str, quantity: float, new_stop_loss: float, take_profit: float) -> bool:
+        """Actualiza el stop loss (trailing) cancelando órdenes existentes y creando nuevas."""
+        self.logger.info(f"🔄 Actualizando Trailing Stop para {symbol} a ${new_stop_loss:.4f}")
+        
+        # 1. Cancelar todas las órdenes de SL/TP existentes para el símbolo
+        if not self.cancel_all_open_orders(symbol):
+            self.logger.error(f"No se pudo actualizar el SL para {symbol} porque la cancelación de órdenes falló.")
+            return False
+        
+        # 2. Determinar el lado de las órdenes de cierre
+        exit_side = 'SELL' if side == 'BUY' else 'BUY'
+        
+        # Formatear precios y cantidad
+        quantity_str = self._format_quantity(symbol, quantity)
+        stop_loss_str = self._format_price(symbol, new_stop_loss)
+        take_profit_str = self._format_price(symbol, take_profit)
+        
+        # 3. Colocar la nueva orden Stop Loss (STOP_MARKET)
+        try:
+            self.logger.info(f"🛡️ Colocando NUEVA orden Stop Loss para {symbol} a ${stop_loss_str}")
+            self.client.futures_create_order(
+                symbol=symbol,
+                side=exit_side,
+                type='STOP_MARKET',
+                stopPrice=stop_loss_str,
+                quantity=quantity_str,
+                reduceOnly=True
+            )
+            self.logger.info(f"✅ Nueva orden Stop Loss colocada.")
+        except BinanceAPIException as e:
+            self.logger.error(f"❌ Error al colocar NUEVA orden Stop Loss para {symbol}: {e}")
+            # Si falla, es crítico. Se podría intentar cerrar la posición como medida de seguridad.
+            return False
+            
+        # 4. Volver a colocar la orden Take Profit (TAKE_PROFIT_MARKET)
+        try:
+            self.logger.info(f"🎯 Volviendo a colocar orden Take Profit para {symbol} a ${take_profit_str}")
+            self.client.futures_create_order(
+                symbol=symbol,
+                side=exit_side,
+                type='TAKE_PROFIT_MARKET',
+                stopPrice=take_profit_str,
+                quantity=quantity_str,
+                reduceOnly=True
+            )
+            self.logger.info(f"✅ Orden Take Profit vuelta a colocar.")
+        except BinanceAPIException as e:
+            self.logger.warning(f"⚠️ Error al volver a colocar orden Take Profit para {symbol}: {e}")
+            # Esto es menos crítico que el fallo del SL, pero debería ser notificado.
+
+        self.logger.info(f"✅ Trailing Stop para {symbol} actualizado correctamente en Binance.")
+        return True
+
     def get_open_positions(self) -> List[Dict]:
         """Obtener posiciones abiertas"""
         try:

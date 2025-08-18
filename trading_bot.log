@@ -76,3 +76,16 @@
 2025-08-16 15:56:25 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
 2025-08-16 15:56:28 - TradingBot - INFO - Stream de datos de mercado iniciado, esperando para precargar datos...
 2025-08-16 15:56:43 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-08-18 19:11:57 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-08-18 19:11:57 - TradingBot - INFO - Stream de datos de mercado iniciado, esperando para precargar datos...
+2025-08-18 19:12:12 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente
+2025-08-18 19:12:12 - TradingBot - INFO - 🔍 Iniciando análisis de mercados (Ciclo #0)
+2025-08-18 19:12:12 - TradingBot - INFO - 📊 BTCUSDT: HOLD (Confianza: 0.00)
+2025-08-18 19:12:12 - TradingBot - INFO - 📊 ETHUSDT: HOLD (Confianza: 0.00)
+2025-08-18 19:12:12 - TradingBot - INFO - 📊 SOLUSDT: HOLD (Confianza: 0.00)
+2025-08-18 19:12:12 - TradingBot - INFO - 📊 BNBUSDT: HOLD (Confianza: 0.00)
+2025-08-18 19:12:12 - TradingBot - INFO - 📊 XRPUSDT: HOLD (Confianza: 0.00)
+2025-08-18 19:12:12 - TradingBot - INFO - ✅ Análisis completado: 5 símbolos procesados
+2025-08-18 19:12:12 - TradingBot - INFO - BOT: STARTING - Inicializando componentes del bot
+2025-08-18 19:12:15 - TradingBot - INFO - Stream de datos de mercado iniciado, esperando para precargar datos...
+2025-08-18 19:12:30 - TradingBot - INFO - BOT: INITIALIZED - Todos los componentes inicializados correctamente

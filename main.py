@@ -335,15 +335,55 @@ class RobustTradingBot:
             return False
     
     async def monitor_positions_safe(self) -> None:
-        """Monitorear posiciones existentes con manejo robusto de errores"""
+        """Monitorea posiciones abiertas, actualiza PnL y gestiona Trailing Stops."""
         try:
             positions = self.position_manager.get_all_positions()
-            if positions:
-                self.logger.debug(f"Monitoreando {len(positions)} posiciones")
-                # Aquí iría la lógica de monitoreo de posiciones
-            
+            if not positions:
+                return
+
+            self.logger.debug(f"Monitoreando {len(positions)} posiciones abiertas...")
+
+            for symbol, position in positions.items():
+                try:
+                    current_price = self.binance_client.get_current_price(symbol)
+                    if not current_price:
+                        self.logger.warning(f"No se pudo obtener precio para monitorear {symbol}")
+                        continue
+
+                    # Actualizar PnL de la posición
+                    self.position_manager.update_position_pnl(symbol, current_price)
+
+                    # Verificar si se debe activar el Trailing Stop
+                    if self.position_manager.should_activate_trailing_stop(symbol, current_price, config.TRAILING_STOP_PERCENT):
+                        
+                        # Calcular el nuevo precio de stop loss
+                        new_stop_loss = self.risk_manager.calculate_trailing_stop(current_price, position['side'])
+                        
+                        # Verificar si el nuevo SL es una mejora y actualizarlo localmente
+                        if self.position_manager.update_trailing_stop(symbol, new_stop_loss):
+                            self.logger.info(f"Intentando actualizar Trailing Stop en Binance para {symbol} a ${new_stop_loss:.4f}")
+                            
+                            # Actualizar la orden en Binance
+                            success = self.binance_client.update_trailing_stop_order(
+                                symbol=symbol,
+                                side=position['side'],
+                                quantity=position['quantity'],
+                                new_stop_loss=new_stop_loss,
+                                take_profit=position['take_profit']
+                            )
+
+                            if success:
+                                self.logger.info(f"✅ Trailing Stop para {symbol} actualizado exitosamente en Binance.")
+                                send_telegram_message(f"🛡️ Trailing Stop Actualizado 🛡️\n\n*Símbolo:* {symbol}\n*Nuevo Stop Loss:* ${new_stop_loss:.4f}")
+                            else:
+                                self.logger.error(f"❌ FALLO CRÍTICO: No se pudo actualizar el Trailing Stop en Binance para {symbol}. La posición puede no tener SL.")
+
+                except Exception as e:
+                    self.logger.log_error(f"Error al monitorear la posición {symbol}", e)
+                    continue
+
         except Exception as e:
-            self.logger.log_error("Error al monitorear posiciones", e)
+            self.logger.log_error("Error crítico al monitorear posiciones", e)
     
     async def run_cycle_safe(self) -> bool:
         """
