@@ -324,3 +324,54 @@ class PositionManager:
             self.logger.error(f"Error al cargar posiciones: {e}")
             return False
 
+    def reconcile_positions(self, binance_client: 'BinanceAPIClient') -> bool:
+        """
+        Reconcilia las posiciones internas con las posiciones reales de Binance.
+        """
+        self.logger.info("🔄 Iniciando reconciliación de posiciones con Binance...")
+        try:
+            open_positions_from_binance = binance_client.get_open_positions()
+            
+            if not open_positions_from_binance:
+                self.logger.info("No hay posiciones abiertas en Binance. Limpiando posiciones internas.")
+                self.positions = {}
+                return True
+
+            reconciled_positions = {}
+            for position_data in open_positions_from_binance:
+                symbol = position_data['symbol']
+                quantity = float(position_data['positionAmt'])
+                entry_price = float(position_data['entryPrice'])
+                
+                if quantity == 0:
+                    continue
+
+                side = 'LONG' if quantity > 0 else 'SHORT'
+                
+                # Create a new position structure, filling in what we can
+                reconciled_positions[symbol] = {
+                    'symbol': symbol,
+                    'side': side,
+                    'entry_price': entry_price,
+                    'quantity': abs(quantity),
+                    'stop_loss': 0,  # We can't know this from Binance directly
+                    'take_profit': 0, # We can't know this from Binance directly
+                    'order_id': None, # We can't know this from Binance directly
+                    'entry_time': datetime.now().isoformat(),
+                    'status': 'OPEN',
+                    'trailing_stop_active': False,
+                    'current_stop_loss': 0, # We can't know this from Binance directly
+                    'max_profit': 0.0,
+                    'current_pnl': 0.0
+                }
+                self.logger.info(f"Reconciliado: {side} {symbol} @ {entry_price}, Cantidad: {abs(quantity)}")
+
+            self.positions = reconciled_positions
+            self.logger.info(f"✅ Reconciliación completada. {len(self.positions)} posiciones activas.")
+            self.save_positions_to_file() # Save the reconciled state
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error durante la reconciliación de posiciones: {e}", exc_info=True)
+            return False
+

@@ -91,6 +91,15 @@ class RobustTradingBot:
             print("📈 Inicializando gestor de posiciones...")
             self.position_manager = PositionManager()
             self.position_manager.load_positions_from_file()
+
+            # Reconcilar posiciones con Binance
+            print("🔄 Reconciliando posiciones con Binance...")
+            self.logger.info("Sincronizando el estado de las posiciones con el exchange.")
+            if not self.position_manager.reconcile_positions(self.binance_client):
+                self.logger.error("No se pudo reconciliar las posiciones con Binance. El bot no continuará.")
+                print("❌ Error: Falló la sincronización de posiciones con Binance.")
+                return False
+            print("✅ Posiciones reconciliadas correctamente.")
             
             self.logger.log_bot_status("INITIALIZED", "Todos los componentes inicializados correctamente")
             print("✅ Todos los componentes inicializados correctamente")
