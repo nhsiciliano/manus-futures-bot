@@ -373,7 +373,7 @@ class RobustTradingBot:
                             self.logger.info(f"Intentando actualizar Trailing Stop en Binance para {symbol} a ${new_stop_loss:.4f}")
                             
                             # Actualizar la orden en Binance
-                            success = self.binance_client.update_trailing_stop_order(
+                            update_status = self.binance_client.update_trailing_stop_order(
                                 symbol=symbol,
                                 side=position['side'],
                                 quantity=position['quantity'],
@@ -381,10 +381,14 @@ class RobustTradingBot:
                                 take_profit=position['take_profit']
                             )
 
-                            if success:
+                            if update_status == 'UPDATED':
                                 self.logger.info(f"✅ Trailing Stop para {symbol} actualizado exitosamente en Binance.")
                                 send_telegram_message(f"🛡️ Trailing Stop Actualizado 🛡️\n\n*Símbolo:* {symbol}\n*Nuevo Stop Loss:* ${new_stop_loss:.4f}")
-                            else:
+                            elif update_status == 'CLOSED':
+                                self.logger.info(f"✅ Posición {symbol} cerrada por activación de Trailing Stop.")
+                                send_telegram_message(f"💥 Posición Cerrada por Trailing Stop 💥\n\n*Símbolo:* {symbol}")
+                                self.position_manager.remove_position(symbol)
+                            else: # 'FAILED'
                                 self.logger.error(f"❌ FALLO CRÍTICO: No se pudo actualizar el Trailing Stop en Binance para {symbol}. La posición puede no tener SL.")
 
                 except Exception as e:

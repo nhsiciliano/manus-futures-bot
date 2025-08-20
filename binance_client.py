@@ -364,14 +364,20 @@ class BinanceAPIClient:
             self.logger.error(f"Error al cancelar órdenes para {symbol}: {e}")
             return False
 
-    def update_trailing_stop_order(self, symbol: str, side: str, quantity: float, new_stop_loss: float, take_profit: float) -> bool:
-        """Actualiza el stop loss (trailing) cancelando órdenes existentes y creando nuevas."""
+    def update_trailing_stop_order(self, symbol: str, side: str, quantity: float, new_stop_loss: float, take_profit: float) -> str:
+        """
+        Actualiza el stop loss (trailing) cancelando órdenes existentes y creando nuevas.
+        Returns:
+            'UPDATED': Si el SL fue actualizado correctamente.
+            'CLOSED': Si la posición fue cerrada por activación inmediata del SL.
+            'FAILED': Si ocurrió un error.
+        """
         self.logger.info(f"🔄 Actualizando Trailing Stop para {symbol} a ${new_stop_loss:.4f}")
         
         # 1. Cancelar todas las órdenes de SL/TP existentes para el símbolo
         if not self.cancel_all_open_orders(symbol):
             self.logger.error(f"No se pudo actualizar el SL para {symbol} porque la cancelación de órdenes falló.")
-            return False
+            return 'FAILED'
         
         # 2. Determinar el lado de las órdenes de cierre
         exit_side = 'SELL' if side == 'BUY' else 'BUY'
@@ -394,9 +400,18 @@ class BinanceAPIClient:
             )
             self.logger.info(f"✅ Nueva orden Stop Loss colocada.")
         except BinanceAPIException as e:
-            self.logger.error(f"❌ Error al colocar NUEVA orden Stop Loss para {symbol}: {e}")
-            # Si falla, es crítico. Se podría intentar cerrar la posición como medida de seguridad.
-            return False
+            if e.code == -2021:
+                self.logger.warning(f"⚠️ Trailing Stop para {symbol} se activaría inmediatamente. Cerrando posición a mercado.")
+                close_order = self.place_futures_order(symbol, exit_side, quantity, 'MARKET')
+                if close_order:
+                    self.logger.info(f"✅ Posición {symbol} cerrada a mercado por activación de Trailing Stop.")
+                    return 'CLOSED'
+                else:
+                    self.logger.error(f"❌ FALLO CRÍTICO: No se pudo cerrar la posición {symbol} a mercado tras fallo de SL.")
+                    return 'FAILED'
+            else:
+                self.logger.error(f"❌ Error al colocar NUEVA orden Stop Loss para {symbol}: {e}")
+                return 'FAILED'
             
         # 4. Volver a colocar la orden Take Profit (TAKE_PROFIT_MARKET)
         try:
@@ -415,7 +430,7 @@ class BinanceAPIClient:
             # Esto es menos crítico que el fallo del SL, pero debería ser notificado.
 
         self.logger.info(f"✅ Trailing Stop para {symbol} actualizado correctamente en Binance.")
-        return True
+        return 'UPDATED'
 
     def get_open_positions(self) -> List[Dict]:
         """Obtener posiciones abiertas"""
